@@ -1,0 +1,1155 @@
+Blend Image Video Creation
+user
+how does this look ?                                                                                                                                                                     ! rm animate_temp/*.jpg
+import shutil
+import os
+import glob
+from moviepy.editor import ImageSequenceClip
+from PIL import Image
+from time import sleep
+import time
+import datetime
+import random
+
+#DIR = "static/images-for-fades/leonardo.ai_files/"
+DIR = "/home/jack/Desktop/content/static/leonardo_alice/"
+@app.route(/mkblend_video)
+def mkblend_video(DIR):
+    image_list = glob.glob(DIR + "*.jpg")
+    # Shuffle the image list
+    random.shuffle(image_list)
+    image_list = random.sample(image_list,40)
+    # Print the shuffled image list
+    print(len(image_list))
+    def changeImageSize(maxWidth, 
+                        maxHeight, 
+                        image):
+        widthRatio  = maxWidth/image.size[0]
+        heightRatio = maxHeight/image.size[1]
+        newWidth    = int(widthRatio*image.size[0])
+        newHeight   = int(heightRatio*image.size[1])
+        newImage    = image.resize((newWidth, newHeight))
+        return newImage
+    imagesize = Image.open(image_list[1]).size
+    for i in range(0,len(image_list)-1): 
+    # Take two images for blending them together  
+        imag1 = image_list[i]
+        imag2 = image_list[i+1]
+        image1 = Image.open(imag1)
+        image2 = Image.open(imag2)
+
+        # Make the images of uniform size
+        image3 = changeImageSize(imagesize[0],imagesize[1], image1)
+        image4 = changeImageSize(imagesize[0],imagesize[1], image2)
+
+        # Make sure images got an alpha channel
+        image5 = image3.convert("RGBA")
+        image6 = image4.convert("RGBA")
+        text = "animate/"
+        for ic in range(0,125):
+            inc = ic*.008
+            sleep(.1)
+            #gradually increase opacity
+            alphaBlended = Image.blend(image5, image6, alpha=inc)
+            alphaBlended = alphaBlended.convert("RGB")
+            current_time = datetime.datetime.now()
+            filename = current_time.strftime('%Y%m%d_%H%M%S%f')[:-3] + '.jpg'
+            alphaBlended.save(f'{text}{filename}')
+            if ic %25 ==0:print(i,":",ic, end = " . ")
+
+    #from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
+    # Get the list of files sorted by creation time
+    imagelist = sorted(glob.glob('animate/*.jpg'), key=os.path.getmtime)
+
+    # Create a clip from the images
+    clip = ImageSequenceClip(imagelist, fps=30)
+
+    # Write the clip to a video file using ffmpeg
+    current_time = datetime.datetime.now()
+    filename = current_time.strftime('%Y%m%d_%H%M%S%f')[:-3] + 'june25.mp4'
+    shutil.copy(filename, "static/TEMP3.mp4")
+    clip.write_videofile('animate/'+filename, fps=24, codec='libx265', preset='medium')
+    videos="static/TEMP3.mp4"
+    return render_template(mkblend_video.html, video=videos)
+
+    -------- mkblend_video.html -----------
+    <!DOCTYPE html>
+<html>
+<head>
+  <title>Blend Images</title>
+</head>
+<body>
+  <h1>Blend Images</h1>
+
+   <video width="480" height="auto" controls >
+        <source src=f"{{ video }}" type="video/mp4">
+        Your browser does not support the video tag.
+      </video><br />
+</body>
+</html>
+
+</html>
+ChatGPT
+The code you provided appears to be a Python script that creates a video by blending a series of images together. However, there are a few issues and improvements that can be made:
+
+1. Ensure proper formatting: In Python, indentation is crucial for code blocks. Make sure that the code is indented correctly.
+
+2. Import statements: The import statements should be placed at the beginning of the script, before any function definitions or other code.
+
+3. Flask route: Assuming this script is part of a Flask web application, the route decorator should be properly defined. The route should be enclosed in quotes ("/mkblend_video") to make it a string.
+
+4. Image resizing: The `changeImageSize` function takes an `image` parameter, but you're passing the image file path (`imag1` and `imag2`). Modify the function to accept an image object instead.
+
+5. Filename generation: In the `changeImageSize` loop, the `filename` variable is generated but never used. You should use it in the subsequent line to save the blended image.
+
+6. HTML template: In the `render_template` function, the `mkblend_video.html` string should be enclosed in quotes.
+
+Here's the revised code with the above improvements:
+
+```python
+import shutil
+import os
+import glob
+from moviepy.editor import ImageSequenceClip
+from PIL import Image
+from time import sleep
+import time
+import datetime
+import random
+from flask import Flask, render_template
+
+app = Flask(__name__)
+
+@app.route("/mkblend_video")
+def mkblend_video():
+    # Directory for image files
+    DIR = "/home/jack/Desktop/content/static/leonardo_alice/"
+    
+    # Get a list of image files
+    image_list = glob.glob(DIR + "*.jpg")
+    
+    # Shuffle and select a subset of images
+    random.shuffle(image_list)
+    image_list = random.sample(image_list, 40)
+    
+    # Print the number of selected images
+    print(len(image_list))
+    
+    def changeImageSize(maxWidth, maxHeight, image):
+        widthRatio = maxWidth / image.size[0]
+        heightRatio = maxHeight / image.size[1]
+        newWidth = int(widthRatio * image.size[0])
+        newHeight = int(heightRatio * image.size[1])
+        newImage = image.resize((newWidth, newHeight))
+        return newImage
+    
+    # Get the size of the first image
+    imagesize = Image.open(image_list[0]).size
+    
+    for i in range(len(image_list) - 1):
+        imag1 = image_list[i]
+        imag2 = image_list[i + 1]
+        image1 = Image.open(imag1)
+        image2 = Image.open(imag2)
+
+        image3 = changeImageSize(imagesize[0], imagesize[1], image1)
+        image4 = changeImageSize(imagesize[0], imagesize[1], image2)
+
+        image5 = image3.convert("RGBA")
+        image6 = image4.convert("RGBA")
+        
+        text = "animate/"
+        
+        for ic in range(125):
+            inc = ic * 0.008
+            sleep(0.1)
+            alphaBlended = Image.blend(image5, image6, alpha=inc)
+            alphaBlended = alphaBlended.convert("RGB")
+            
+            current_time = datetime.datetime.now()
+            filename = current_time.strftime('%Y%m%d_%H%M%S%f')[:-3] + '.jpg'
+            
+            alphaBlended.save(f'{text}{filename}')
+            
+            if ic % 25 == 0:
+                print(i, ":", ic, end=" . ")
+    
+    imagelist = sorted(glob.glob('animate/*.jpg'), key=os
+user
+and the html ? did that look good ?
+ChatGPT
+Apologies for the oversight. Upon reviewing the HTML template, there are a few improvements that can be made:
+
+1. The `video` variable in the HTML template should be enclosed in double curly braces (`{{ video }}`) to properly render the variable value.
+
+2. The closing `</html>` tag is duplicated at the end of the HTML file. Remove the extra `</html>` tag.
+
+Here's the revised HTML template:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Blend Images</title>
+</head>
+<body>
+  <h1>Blend Images</h1>
+
+  <video width="480" height="auto" controls>
+    <source src="{{ video }}" type="video/mp4">
+    Your browser does not support the video tag.
+  </video><br />
+</body>
+</html>
+```
+
+With these improvements, the HTML template should work as expected.
+user
+python remove all    animta_temp/*.jpg
+ChatGPT
+To remove all files with the ".jpg" extension in the "animate_temp" directory using Python, you can use the `glob` module along with the `os` module's `remove` function. Here's the code snippet:
+
+```python
+import glob
+import os
+
+# Path to the directory containing the files
+directory = "animate_temp"
+
+# Get a list of all .jpg files in the directory
+file_list = glob.glob(os.path.join(directory, "*.jpg"))
+
+# Remove each file in the list
+for file_path in file_list:
+    os.remove(file_path)
+```
+
+Make sure to replace `"animate_temp"` with the appropriate directory path in your case. This code will iterate over all the ".jpg" files in the specified directory and remove them one by one.
+user
+from datetime import datetime
+
+@app.route('/add_text', methods=['GET', 'POST'])
+def add_text():
+    if request.method == 'POST':
+        text = request.form['text']
+        now = datetime.now()
+ChatGPT
+The code you provided is a Flask route handler for the "/add_text" endpoint. It expects a POST request and retrieves the value of the "text" field from the form data. Then, it imports the `datetime` module and assigns the current date and time to the variable `now` using `datetime.now()`.
+
+However, there are a few missing parts in the code you shared. Here's the complete code snippet with the necessary imports and missing parts:
+
+```python
+from datetime import datetime
+from flask import Flask, render_template, request
+
+app = Flask(__name__)
+
+@app.route('/add_text', methods=['GET', 'POST'])
+def add_text():
+    if request.method == 'POST':
+        text = request.form['text']
+        now = datetime.now()
+        # Further processing with the 'text' and 'now' variables
+
+    # Render the template for the add_text route
+    return render_template('add_text.html')
+```
+
+Please note that the code snippet assumes you have a template file named "add_text.html" that corresponds to the route '/add_text'. You may need to create the template file with the appropriate HTML code for your application.
+user
+Does this look right ?                                                                                                                                                                         @app.route("/mkblend_video")
+def mkblend_video():
+    # Path to the directory containing the files
+    Directory = "animate_temp"
+
+    # Get a list of all .jpg files in the directory
+    file_list = glob.glob(os.path.join(Directory, "*.jpg"))
+
+    # Remove each file in the list
+    for file_path in file_list:
+       os.remove(file_path)
+    # Directory for image files
+    DIR = "/home/jack/Desktop/content/static/leonardo_alice/"
+    
+    # Get a list of image files
+    image_list = glob.glob(DIR + "*.jpg")
+    
+    # Shuffle and select a subset of images
+    random.shuffle(image_list)
+    image_list = random.sample(image_list, 40)
+    
+    # Print the number of selected images
+    print(len(image_list))
+    
+    def changeImageSize(maxWidth, maxHeight, image):
+        widthRatio = maxWidth / image.size[0]
+        heightRatio = maxHeight / image.size[1]
+        newWidth = int(widthRatio * image.size[0])
+        newHeight = int(heightRatio * image.size[1])
+        newImage = image.resize((newWidth, newHeight))
+        return newImage
+    
+    # Get the size of the first image
+    imagesize = Image.open(image_list[0]).size
+    
+    for i in range(len(image_list) - 1):
+        imag1 = image_list[i]
+        imag2 = image_list[i + 1]
+        image1 = Image.open(imag1)
+        image2 = Image.open(imag2)
+
+        image3 = changeImageSize(imagesize[0], imagesize[1], image1)
+        image4 = changeImageSize(imagesize[0], imagesize[1], image2)
+
+        image5 = image3.convert("RGBA")
+        image6 = image4.convert("RGBA")
+        text = "animate_temp/"
+        for ic in range(125):
+            inc = ic * 0.008
+            sleep(0.1)
+            alphaBlended = Image.blend(image5, image6, alpha=inc)
+            alphaBlended = alphaBlended.convert("RGB")
+            current_time = datetime.now()
+            filename = current_time.strftime('%Y%m%d_%H%M%S%f')[:-3] + '.jpg'
+            alphaBlended.save(f'{text}{filename}')
+            if ic % 25 == 0:
+                print(i, ":", ic, end=" . ")
+    imagelist = sorted(glob.glob('animate_temp/*.jpg'), key=os.path.getmtime)
+    logger.debug('This is a debug message: %s', imagelist)
+    # Create a clip from the images
+    clip = ImageSequenceClip(imagelist, fps=30)
+    # Write the clip to a video file using ffmpeg
+    current_time = datetime.now()
+    filename = current_time.strftime('%Y%m%d_%H%M%S%f')[:-3] + 'june25.mp4'
+    File = 'animate_temp/'+filename
+    logger.debug('This is File: %s', File)
+    clip.write_videofile(File, fps=24, codec='libx265', preset='medium')
+    shutil.copy(File, "static/TEMP3.mp4")
+    video = "static/TEMP3.mp4"
+    return render_template('mkblend_video.html', video = video)
+ERROR: It is not making a video ?
+ChatGPT
+The code you provided looks mostly correct, but there are a few potential issues that could be causing the video not to be created:
+
+1. Check the paths: Make sure that the `animate_temp` directory exists in the appropriate location and that it is writable. Verify that the directory path is correct in the `Directory` variable.
+
+2. Check file paths: Double-check the file paths in the code. Ensure that the image files exist in the `DIR` directory and that the `animate_temp` directory is correctly specified when saving the blended images and video file.
+
+3. Logging: The code includes calls to a logger (`logger.debug`). Ensure that you have imported the `logging` module and set up the logger properly.
+
+4. Debugging: Consider adding print statements or using a debugger to inspect the values of variables and identify any potential issues. Print out the file paths and verify that they are as expected.
+
+By addressing these points, you should be able to troubleshoot and identify the cause of the issue preventing the video from being created.
+user
+Can it print something so I can see if it is running ?
+ChatGPT
+Yes, you can add print statements at different points in your code to see if it is running and to track the progress. Here's an updated version of your code with added print statements for debugging purposes:
+
+```python
+import glob
+import os
+import shutil
+from datetime import datetime
+from flask import Flask, render_template
+from PIL import Image
+from moviepy.editor import ImageSequenceClip
+
+app = Flask(__name__)
+
+@app.route("/mkblend_video")
+def mkblend_video():
+    # Print a message to indicate the function has started
+    print("mkblend_video function started")
+
+    # Path to the directory containing the files
+    Directory = "animate_temp"
+
+    # Get a list of all .jpg files in the directory
+    file_list = glob.glob(os.path.join(Directory, "*.jpg"))
+
+    # Remove each file in the list
+    for file_path in file_list:
+        os.remove(file_path)
+
+    # Rest of your code...
+    # ...
+
+    # Print a message to indicate the function has completed
+    print("mkblend_video function completed")
+
+    # Render the template and return the response
+    return render_template('mkblend_video.html', video=video)
+```
+
+By adding the print statements at the beginning and end of the function, you can check the console output to see if the function is running and when it completes.
+user
+it is rendering the file html before the video is complete
+ChatGPT
+To address the issue of rendering the HTML template before the video creation is complete, you can modify the code to perform the video creation process asynchronously. One way to achieve this is by using a background task or a separate thread to create the video while allowing the HTML template to be rendered immediately.
+
+Here's an updated version of your code that incorporates the use of the `threading` module to create the video in the background:
+
+```python
+import glob
+import os
+import shutil
+from datetime import datetime
+from flask import Flask, render_template
+from PIL import Image
+from moviepy.editor import ImageSequenceClip
+import threading
+
+app = Flask(__name__)
+
+# Function to create the video in the background
+def create_video():
+    # Rest of your video creation code...
+    # ...
+
+    # Move the shutil.copy() and video assignment code here
+
+    # Move the rendering of the template here
+    render_template('mkblend_video.html', video=video)
+
+@app.route("/mkblend_video")
+def mkblend_video():
+    # Print a message to indicate the function has started
+    print("mkblend_video function started")
+
+    # Path to the directory containing the files
+    Directory = "animate_temp"
+
+    # Get a list of all .jpg files in the directory
+    file_list = glob.glob(os.path.join(Directory, "*.jpg"))
+
+    # Remove each file in the list
+    for file_path in file_list:
+        os.remove(file_path)
+
+    # Rest of your code...
+    # ...
+
+    # Create a new thread for video creation
+    video_thread = threading.Thread(target=create_video)
+    video_thread.start()
+
+    # Render the initial HTML template
+    return render_template('mkblend_video.html')
+
+if __name__ == '__main__':
+    app.run()
+```
+
+In this updated code, the video creation process is moved to a separate function called `create_video()`. The function is executed in a separate thread using the `threading.Thread` class. This allows the video creation to run concurrently while the initial HTML template is rendered and returned immediately.
+
+Please note that with this implementation, you may need to adjust the HTML template to handle scenarios where the video is not yet available or is still being processed.
+user
+I do not understand can you sennd that complete ?
+ChatGPT
+Certainly! Here's the complete code with the modifications to perform the video creation process asynchronously using a separate thread:
+
+```python
+import glob
+import os
+import shutil
+from datetime import datetime
+from flask import Flask, render_template
+from PIL import Image
+from moviepy.editor import ImageSequenceClip
+import threading
+
+app = Flask(__name__)
+
+# Function to create the video in the background
+def create_video():
+    # Path to the directory containing the files
+    Directory = "animate_temp"
+
+    # Get a list of all .jpg files in the directory
+    file_list = glob.glob(os.path.join(Directory, "*.jpg"))
+
+    # Remove each file in the list
+    for file_path in file_list:
+        os.remove(file_path)
+
+    # Rest of your video creation code...
+    # ...
+
+    # Move the shutil.copy() and video assignment code here
+
+    # Move the rendering of the template here
+    render_template('mkblend_video.html', video=video)
+
+@app.route("/mkblend_video")
+def mkblend_video():
+    # Print a message to indicate the function has started
+    print("mkblend_video function started")
+
+    # Create a new thread for video creation
+    video_thread = threading.Thread(target=create_video)
+    video_thread.start()
+
+    # Render the initial HTML template
+    return render_template('mkblend_video.html')
+
+if __name__ == '__main__':
+    app.run()
+```
+
+Please note that you may need to adjust the remaining parts of your video creation code and the HTML template to fit this structure. The video creation process will now run asynchronously in the background while the initial HTML template is rendered and returned immediately.
+user
+@app.route("/mkblend_video")
+def mkblend_video():
+    # Path to the directory containing the files
+    Directory = "animate_temp"
+
+    # Get a list of all .jpg files in the directory
+    file_list = glob.glob(os.path.join(Directory, "*.jpg"))
+
+    # Remove each file in the list
+    for file_path in file_list:
+       os.remove(file_path)
+    # Directory for image files
+    sleep(2)
+    DIR = "/home/jack/Desktop/content/static/leonardo_alice/"
+    
+    # Get a list of image files
+    image_list = glob.glob(DIR + "*.jpg")
+    
+    # Shuffle and select a subset of images
+    random.shuffle(image_list)
+    image_list = random.sample(image_list, 10)
+    
+    # Print the number of selected images
+    print(len(image_list))
+    
+    def changeImageSize(maxWidth, maxHeight, image):
+        widthRatio = maxWidth / image.size[0]
+        heightRatio = maxHeight / image.size[1]
+        newWidth = int(widthRatio * image.size[0])
+        newHeight = int(heightRatio * image.size[1])
+        newImage = image.resize((newWidth, newHeight))
+        return newImage
+    
+    # Get the size of the first image
+    imagesize = Image.open(image_list[0]).size
+    
+    for i in range(len(image_list) - 1):
+        imag1 = image_list[i]
+        imag2 = image_list[i + 1]
+        image1 = Image.open(imag1)
+        image2 = Image.open(imag2)
+
+        image3 = changeImageSize(imagesize[0], imagesize[1], image1)
+        image4 = changeImageSize(imagesize[0], imagesize[1], image2)
+
+        image5 = image3.convert("RGBA")
+        image6 = image4.convert("RGBA")
+        text = "animate_temp/"
+        for ic in range(125):
+            inc = ic * 0.008
+            sleep(0.1)
+            alphaBlended = Image.blend(image5, image6, alpha=inc)
+            alphaBlended = alphaBlended.convert("RGB")
+            current_time = datetime.now()
+            filename = current_time.strftime('%Y%m%d_%H%M%S%f')[:-3] + '.jpg'
+            alphaBlended.save(f'{text}{filename}')
+            if ic % 25 == 0:
+                print(i, ":", ic, end=" . ")
+    imagelist = sorted(glob.glob('animate_temp/*.jpg'), key=os.path.getmtime)
+    logger.debug('This is a debug message: %s', imagelist)
+    # Create a clip from the images
+    clip = ImageSequenceClip(imagelist, fps=30)
+    # Write the clip to a video file using ffmpeg
+    current_time = datetime.now()
+    filename = current_time.strftime('%Y%m%d_%H%M%S%f')[:-3] + 'june25.mp4'
+    File = 'animate_temp/'+filename
+    logger.debug('This is File: %s', File)
+    clip.write_videofile(File, fps=24, codec='libx265', preset='medium')
+    shutil.copy(File, "static/TEMP3.mp4")
+    video = "static/TEMP3.mp4"
+    return render_template('mkblend_video.html', video = video)             Can you help now ?
+ChatGPT
+Certainly! I noticed that in your code, you have added a `sleep(2)` statement after removing the files from the `animate_temp` directory. This sleep statement will pause the execution for 2 seconds before proceeding with the rest of the code. 
+
+If you want to introduce a delay before starting the image blending process, you can modify that part of the code. Here's an updated version that introduces a 2-second delay using the `time.sleep()` function:
+
+```python
+import glob
+import os
+import shutil
+from datetime import datetime
+from flask import Flask, render_template
+from PIL import Image
+from moviepy.editor import ImageSequenceClip
+import time
+
+app = Flask(__name__)
+
+@app.route("/mkblend_video")
+def mkblend_video():
+    # Path to the directory containing the files
+    Directory = "animate_temp"
+
+    # Get a list of all .jpg files in the directory
+    file_list = glob.glob(os.path.join(Directory, "*.jpg"))
+
+    # Remove each file in the list
+    for file_path in file_list:
+        os.remove(file_path)
+
+    # Introduce a 2-second delay
+    time.sleep(2)
+
+    # Rest of your code...
+    # ...
+```
+
+With this modification, the code will wait for 2 seconds after removing the files before proceeding with the rest of the image blending process. Adjust the delay as needed to achieve the desired timing.
+user
+I use             from time import sleep
+ChatGPT
+Apologies for the confusion. If you're already importing the `sleep` function from the `time` module using `from time import sleep`, you can use it in the code directly. Here's the updated code snippet with the correct usage:
+
+```python
+import glob
+import os
+import shutil
+from datetime import datetime
+from flask import Flask, render_template
+from PIL import Image
+from moviepy.editor import ImageSequenceClip
+from time import sleep
+
+app = Flask(__name__)
+
+@app.route("/mkblend_video")
+def mkblend_video():
+    # Path to the directory containing the files
+    Directory = "animate_temp"
+
+    # Get a list of all .jpg files in the directory
+    file_list = glob.glob(os.path.join(Directory, "*.jpg"))
+
+    # Remove each file in the list
+    for file_path in file_list:
+        os.remove(file_path)
+
+    # Introduce a 2-second delay
+    sleep(2)
+
+    # Rest of your code...
+    # ...
+```
+
+Now you can use `sleep(2)` to introduce a 2-second delay before proceeding with the image blending process.
+user
+@app.route("/mkblend_video")
+def mkblend_video():
+    # Path to the directory containing the files
+    Directory = "animate_temp"
+
+    # Get a list of all .jpg files in the directory
+    file_list = glob.glob(os.path.join(Directory, "*.jpg"))
+
+    # Remove each file in the list
+    for file_path in file_list:
+       os.remove(file_path)
+    # Directory for image files
+    sleep(2)
+    DIR = "/home/jack/Desktop/content/static/leonardo_alice/"
+    
+    # Get a list of image files
+    image_list = glob.glob(DIR + "*.jpg")
+    
+    # Shuffle and select a subset of images
+    random.shuffle(image_list)
+    image_list = random.sample(image_list, 10)
+    
+    # Print the number of selected images
+    print(len(image_list))
+    
+    def changeImageSize(maxWidth, maxHeight, image):
+        widthRatio = maxWidth / image.size[0]
+        heightRatio = maxHeight / image.size[1]
+        newWidth = int(widthRatio * image.size[0])
+        newHeight = int(heightRatio * image.size[1])
+        newImage = image.resize((newWidth, newHeight))
+        return newImage
+    
+    # Get the size of the first image
+    imagesize = Image.open(image_list[0]).size
+    
+    for i in range(len(image_list) - 1):
+        imag1 = image_list[i]
+        imag2 = image_list[i + 1]
+        image1 = Image.open(imag1)
+        image2 = Image.open(imag2)
+
+        image3 = changeImageSize(imagesize[0], imagesize[1], image1)
+        image4 = changeImageSize(imagesize[0], imagesize[1], image2)
+
+        image5 = image3.convert("RGBA")
+        image6 = image4.convert("RGBA")
+        text = "animate_temp/"
+        for ic in range(125):
+            inc = ic * 0.008
+            sleep(0.1)
+            alphaBlended = Image.blend(image5, image6, alpha=inc)
+            alphaBlended = alphaBlended.convert("RGB")
+            current_time = datetime.now()
+            filename = current_time.strftime('%Y%m%d_%H%M%S%f')[:-3] + '.jpg'
+            alphaBlended.save(f'{text}{filename}')
+            if ic % 25 == 0:
+                print(i, ":", ic, end=" . ")
+    imagelist = sorted(glob.glob('animate_temp/*.jpg'), key=os.path.getmtime)
+    logger.debug('This is a debug message: %s', imagelist)
+    # Create a clip from the images
+    clip = ImageSequenceClip(imagelist, fps=30)
+    # Write the clip to a video file using ffmpeg
+    current_time = datetime.now()
+    filename = current_time.strftime('%Y%m%d_%H%M%S%f')[:-3] + 'june25.mp4'
+    File = 'animate_temp/'+filename
+    logger.debug('This is File: %s', File)
+    clip.write_videofile(File, fps=24, codec='libx265', preset='medium')
+    shutil.copy(File, "static/TEMP3.mp4")
+    video = "static/TEMP3.mp4"
+    return render_template('mkblend_video.html', video = video)                                                                    
+   Can you resend this all repaired ?                                                   
+ChatGPT
+Certainly! Here's the updated code snippet with the necessary adjustments:
+
+```python
+import glob
+import os
+import shutil
+from datetime import datetime
+from flask import Flask, render_template
+from PIL import Image
+from moviepy.editor import ImageSequenceClip
+from time import sleep
+
+app = Flask(__name__)
+
+@app.route("/mkblend_video")
+def mkblend_video():
+    # Path to the directory containing the files
+    Directory = "animate_temp"
+
+    # Get a list of all .jpg files in the directory
+    file_list = glob.glob(os.path.join(Directory, "*.jpg"))
+
+    # Remove each file in the list
+    for file_path in file_list:
+        os.remove(file_path)
+
+    # Introduce a 2-second delay
+    sleep(2)
+
+    # Directory for image files
+    DIR = "/home/jack/Desktop/content/static/leonardo_alice/"
+
+    # Get a list of image files
+    image_list = glob.glob(DIR + "*.jpg")
+
+    # Shuffle and select a subset of images
+    random.shuffle(image_list)
+    image_list = random.sample(image_list, 10)
+
+    # Print the number of selected images
+    print(len(image_list))
+
+    def changeImageSize(maxWidth, maxHeight, image):
+        widthRatio = maxWidth / image.size[0]
+        heightRatio = maxHeight / image.size[1]
+        newWidth = int(widthRatio * image.size[0])
+        newHeight = int(heightRatio * image.size[1])
+        newImage = image.resize((newWidth, newHeight))
+        return newImage
+
+    # Get the size of the first image
+    imagesize = Image.open(image_list[0]).size
+
+    for i in range(len(image_list) - 1):
+        imag1 = image_list[i]
+        imag2 = image_list[i + 1]
+        image1 = Image.open(imag1)
+        image2 = Image.open(imag2)
+
+        image3 = changeImageSize(imagesize[0], imagesize[1], image1)
+        image4 = changeImageSize(imagesize[0], imagesize[1], image2)
+
+        image5 = image3.convert("RGBA")
+        image6 = image4.convert("RGBA")
+        text = "animate_temp/"
+        for ic in range(125):
+            inc = ic * 0.008
+            sleep(0.1)
+            alphaBlended = Image.blend(image5, image6, alpha=inc)
+            alphaBlended = alphaBlended.convert("RGB")
+            current_time = datetime.now()
+            filename = current_time.strftime('%Y%m%d_%H%M%S%f')[:-3] + '.jpg'
+            alphaBlended.save(f'{text}{filename}')
+            if ic % 25 == 0:
+                print(i, ":", ic, end=" . ")
+
+    imagelist = sorted(glob.glob('animate_temp/*.jpg'), key=os.path.getmtime)
+    # Create a clip from the images
+    clip = ImageSequenceClip(imagelist, fps=30)
+
+    # Write the clip to a video file using ffmpeg
+    current_time = datetime.now()
+    filename = current_time.strftime('%Y%m%d_%H%M%S%f')[:-3] + 'june25.mp4'
+    File = 'animate_temp/' + filename
+    clip.write_videofile(File, fps=24, codec='libx265', preset='medium')
+    shutil.copy(File, "static/TEMP3.mp4")
+    video = "static/TEMP3.mp4"
+    return render_template('mkblend_video.html', video=video)
+```
+
+This code should address the previous issues and provide the delay before processing the image blending.
+user
+I need the delay before the template rendering
+ChatGPT
+Apologies for the confusion. To introduce a delay before rendering the template, you can modify the code as follows:
+
+```python
+import time
+# ...
+
+@app.route("/mkblend_video")
+def mkblend_video():
+    # ...
+    
+    # Write the clip to a video file using ffmpeg
+    current_time = datetime.now()
+    filename = current_time.strftime('%Y%m%d_%H%M%S%f')[:-3] + 'june25.mp4'
+    File = 'animate_temp/' + filename
+    clip.write_videofile(File, fps=24, codec='libx265', preset='medium')
+    shutil.copy(File, "static/TEMP3.mp4")
+    video = "static/TEMP3.mp4"
+    
+    # Introduce a delay before rendering the template
+    time.sleep(2)
+    
+    return render_template('mkblend_video.html', video=video)
+```
+
+By adding `time.sleep(2)` after copying the video file, it delays the execution for 2 seconds before rendering the template. Adjust the sleep duration as needed.
+user
+can I do something like if "static/TEMP3.mp4" exist  return render_template('mkblend_video.html', video=video)
+ChatGPT
+Yes, you can check if the file exists before rendering the template. Here's an updated version of the code:
+
+```python
+import os
+# ...
+
+@app.route("/mkblend_video")
+def mkblend_video():
+    # ...
+
+    # Write the clip to a video file using ffmpeg
+    current_time = datetime.now()
+    filename = current_time.strftime('%Y%m%d_%H%M%S%f')[:-3] + 'june25.mp4'
+    File = 'animate_temp/' + filename
+    clip.write_videofile(File, fps=24, codec='libx265', preset='medium')
+    shutil.copy(File, "static/TEMP3.mp4")
+    video = "static/TEMP3.mp4"
+
+    # Check if the video file exists
+    if os.path.exists(video):
+        return render_template('mkblend_video.html', video=video)
+    else:
+        # Handle the case when the video file does not exist
+        return "Error: Video file not found"
+```
+
+In this version, we use the `os.path.exists()` function to check if the video file exists. If it does, the template is rendered as before. If it doesn't exist, an error message is returned.
+user
+    # Check if the video file exists
+    if os.path.exists(video):
+        return render_template('mkblend_video.html', video=video)
+    else:
+        # Handle the case when the video file does not exist
+        return "Error: Video file not found"                      if it is not found I want it to wait 
+ChatGPT
+If you want the code to wait and retry until the video file is found, you can use a loop with a delay. Here's an updated version of the code that waits for the video file to exist:
+
+```python
+import os
+import time
+
+# ...
+
+@app.route("/mkblend_video")
+def mkblend_video():
+    # ...
+
+    # Write the clip to a video file using ffmpeg
+    current_time = datetime.now()
+    filename = current_time.strftime('%Y%m%d_%H%M%S%f')[:-3] + 'june25.mp4'
+    File = 'animate_temp/' + filename
+    clip.write_videofile(File, fps=24, codec='libx265', preset='medium')
+    shutil.copy(File, "static/TEMP3.mp4")
+    video = "static/TEMP3.mp4"
+
+    # Check if the video file exists, wait and retry until it does
+    max_attempts = 10
+    attempts = 0
+    while not os.path.exists(video) and attempts < max_attempts:
+        time.sleep(1)  # Wait for 1 second
+        attempts += 1
+
+    if os.path.exists(video):
+        return render_template('mkblend_video.html', video=video)
+    else:
+        return "Error: Video file not found"
+```
+
+In this updated version, the code enters a loop where it checks if the video file exists. If it doesn't exist, it waits for 1 second (`time.sleep(1)`) before checking again. The loop continues until either the video file is found or the maximum number of attempts (`max_attempts`) is reached. If the video file is found, the template is rendered. Otherwise, an error message is returned.
+user
+the video process takes about 5 minutes to make
+
+ChatGPT
+If the video process takes approximately 5 minutes to complete, you can modify the code to wait for the video file in intervals of a few seconds. Here's an updated version that waits for the video file to be generated:
+
+```python
+import os
+import time
+
+# ...
+
+@app.route("/mkblend_video")
+def mkblend_video():
+    # ...
+
+    # Write the clip to a video file using ffmpeg
+    current_time = datetime.now()
+    filename = current_time.strftime('%Y%m%d_%H%M%S%f')[:-3] + 'june25.mp4'
+    File = 'animate_temp/' + filename
+    clip.write_videofile(File, fps=24, codec='libx265', preset='medium')
+    shutil.copy(File, "static/TEMP3.mp4")
+    video = "static/TEMP3.mp4"
+
+    # Check if the video file exists, wait and retry until it does
+    max_attempts = 60  # Wait for a maximum of 5 minutes (60 seconds * 5 minutes)
+    attempts = 0
+    while not os.path.exists(video) and attempts < max_attempts:
+        time.sleep(5)  # Wait for 5 seconds
+        attempts += 1
+
+    if os.path.exists(video):
+        return render_template('mkblend_video.html', video=video)
+    else:
+        return "Error: Video file not found"
+```
+
+In this updated version, the code waits for 5 seconds (`time.sleep(5)`) between each attempt to check if the video file exists. The loop continues until either the video file is found or the maximum number of attempts (`max_attempts`) is reached. If the video file is found, the template is rendered. Otherwise, an error message is returned. Adjust the `max_attempts` value or the sleep interval as needed based on the actual duration of the video processing.
+user
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Blend Images</title>
+</head>
+<body>
+  <h1>Blend Images</h1>
+
+  <video width="480" height="auto" controls>
+    <source src="{{ video }}" type="video/mp4">
+    Your browser does not support the video tag.
+  </video><br />
+  print("{{ video }}")
+  print(src)
+</html>                  WHY WON'T THIS VIDEO SHOW it exists it plays with vlc but not in th html page
+ChatGPT
+The issue you're experiencing might be related to the way you're referencing the video file in the HTML template. The template code you provided seems to have a couple of syntax errors, and the way you're printing the `video` variable may not be correct. Here's an updated version of the HTML template code:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Blend Images</title>
+</head>
+<body>
+  <h1>Blend Images</h1>
+
+  <video width="480" height="auto" controls>
+    <source src="{{ video }}" type="video/mp4">
+    Your browser does not support the video tag.
+  </video><br />
+
+  <!-- Print the video variable -->
+  {{ video }}
+</body>
+</html>
+```
+
+Make sure you have the correct file path and filename in the `video` variable before rendering the template. Also, ensure that the `video` file is accessible from the location specified in the `src` attribute of the `<source>` tag.
+
+If the video file exists and is accessible from the specified location, the HTML template should be able to display the video using the HTML5 `<video>` tag.
+user
+print("{{ video }}")   prints the video path
+ChatGPT
+I apologize for the confusion. In Jinja2 templating, you cannot directly use Python's `print` statement inside the template to print the value of a variable. Instead, you need to use the `{{ ... }}` syntax to output the variable value within the HTML.
+
+To display the video path in the HTML, you can update the template code as follows:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Blend Images</title>
+</head>
+<body>
+  <h1>Blend Images</h1>
+
+  <video width="480" height="auto" controls>
+    <source src="{{ video }}" type="video/mp4">
+    Your browser does not support the video tag.
+  </video><br />
+
+  <!-- Output the video path -->
+  <p>Video Path: {{ video }}</p>
+</body>
+</html>
+```
+
+With this code, the value of the `video` variable will be displayed as text within the `<p>` element on the rendered HTML page.
+
+Make sure that the `video` variable contains the correct file path and filename of the video file.
+user
+print("{{ video }}")       I used this and it This does print the  correct video path
+ChatGPT
+If `print("{{ video }}")` is correctly printing the video path, it means that the value of the `video` variable is being passed to the template successfully.
+
+To display the video on the HTML page, you should remove the `print("{{ video }}")` line and update your template code as follows:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Blend Images</title>
+</head>
+<body>
+  <h1>Blend Images</h1>
+
+  <video width="480" height="auto" controls>
+    <source src="{{ video }}" type="video/mp4">
+    Your browser does not support the video tag.
+  </video><br />
+</body>
+</html>
+```
+
+With this updated code, the video player will be embedded in the HTML page, and it will attempt to load and play the video file specified by the `video` variable.
+
+Ensure that the value of the `video` variable contains the correct file path and filename of the video file, and that the file is accessible from the location where the HTML page is being served.
+user
+!DOCTYPE html>
+<html>
+<head>
+  <title>Blend Images</title>
+</head>
+<body>
+  <h1>Blend Images</h1>
+
+  <video width="480" height="auto" controls>
+    <source src="static/animate_temp/TEMP3.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video><br />
+</body>
+</html>
+ChatGPT
+The HTML code you provided looks correct. It embeds a video player in the HTML page and specifies the video file's source as `"static/animate_temp/TEMP3.mp4"`. If the video file exists at that location and can be accessed by the HTML page, it should be displayed and playable in the browser.
+
+Make sure that the video file `"static/animate_temp/TEMP3.mp4"` exists and is located in the correct directory relative to the HTML file. Also, ensure that the web server serving the HTML page has the necessary permissions to access the video file.
+
+If the video still doesn't display or play, there might be an issue with the file path or the video file itself. You can try opening the video file directly in your browser to see if it plays correctly. Additionally, you can check the browser's console for any error messages related to loading or playing the video.
+user
+ffmpeg -i static/animate_temp/TEMP3.mp4 static/animate_temp/TEMP3.webp
+ChatGPT
+The command you provided is using FFmpeg to convert a video file (`static/animate_temp/TEMP3.mp4`) to a WebP image file (`static/animate_temp/TEMP3.webp`). The `-i` option specifies the input file, and the output file is specified as the second argument.
+
+Here's the command for reference:
+```shell
+ffmpeg -i static/animate_temp/TEMP3.mp4 static/animate_temp/TEMP3.webp
+```
+
+Make sure you have FFmpeg installed on your system and accessible from the command line. Running this command will execute the conversion process and create the WebP image file from the input video file.
+
+Note that the resulting WebP file will be a single image representing a frame from the video, not the entire video itself.
+user
+can I be sure the framerate is 30 ?
+ChatGPT
+To determine the frame rate of a video file, you can use FFmpeg's `-i` option to get detailed information about the input file, including the frame rate. Here's an example command:
+
+```shell
+ffmpeg -i static/animate_temp/TEMP3.mp4
+```
+
+When you run this command, FFmpeg will display information about the video file, including the frame rate. Look for a line similar to:
+
+```
+Stream #0:0: Video: h264 (High), yuv420p(progressive), 1920x1080 [SAR 1:1 DAR 16:9], 30 fps, ...
+```
+
+In this example, the frame rate is specified as `30 fps`. Make sure to check the output of the command to verify the frame rate of your video file.
+
+If you want to explicitly set the frame rate when converting the video to WebP using FFmpeg, you can use the `-r` option followed by the desired frame rate. For example, to convert the video to WebP with a frame rate of 30, you can modify the command like this:
+
+```shell
+ffmpeg -i static/animate_temp/TEMP3.mp4 -r 30 static/animate_temp/TEMP3.webp
+```
+
+This command will ensure that the resulting WebP file has a frame rate of 30 frames per second.
+user
+how to make that a python command ?
+ChatGPT
+To execute FFmpeg command from Python, you can use the `subprocess` module. Here's an example of how you can run the FFmpeg command to convert a video to WebP format using Python:
+
+```python
+import subprocess
+
+video_path = 'static/animate_temp/TEMP3.mp4'
+webp_path = 'static/animate_temp/TEMP3.webp'
+frame_rate = 30
+
+command = [
+    'ffmpeg',
+    '-i',
+    video_path,
+    '-r',
+    str(frame_rate),
+    webp_path
+]
+
+try:
+    subprocess.run(command, check=True)
+    print('Video converted to WebP successfully.')
+except subprocess.CalledProcessError as e:
+    print('Error converting video to WebP:', e)
+```
+
+In this example, the `subprocess.run()` function is used to run the FFmpeg command with the specified arguments. The `check=True` parameter ensures that an exception is raised if the FFmpeg command fails. After executing the command, it will print a success message if the conversion is successful, or an error message if there was a problem.
+
+Make sure to replace `video_path` and `webp_path` with the actual paths to your video file and desired WebP output file, respectively. Also, modify the `frame_rate` variable according to the desired frame rate for the WebP file.
+
+Note: Ensure that FFmpeg is installed on your system and available in the system's PATH environment variable for the Python script to execute the command successfully.
+user
+ <video width="480" height="auto" controls>
+    <source src="static/animate_temp/TEMP3a.webp" type="video/mp4">
+    Your browser does not support the video tag.
+  </video><br />   is  type="video/mp4" correct for *.webp
+ChatGPT
+No, the `type` attribute should reflect the correct MIME type for the video format you're using. For WebP format, the correct MIME type is `video/webp`, not `video/mp4`. So, you should update the `type` attribute as follows:
+
+```html
+<video width="480" height="auto" controls>
+  <source src="static/animate_temp/TEMP3a.webp" type="video/webp">
+  Your browser does not support the video tag.
+</video><br />
+```
+
+By setting the `type` attribute to `video/webp`, you indicate to the browser that the video file is in WebP format, allowing it to handle the video playback correctly.
+

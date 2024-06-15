@@ -1,0 +1,2019 @@
+Correção de código Flask
+user
+@app.route('/', methods=['GET', 'POST'])
+def query_form():
+    if request.method == 'POST':
+        # Get the user query from the form
+        query = request.form['query']
+        # Execute the query and fetch results
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        logit(query)
+        cursor.execute("SELECT words FROM ipynb WHERE words like= ? LIMIT 2", (query,))      
+        results = cursor.fetchall()
+        conn.close()
+        logit(results)
+        return render_template('query_result.html', query=query, results=results)
+    return render_tem
+ChatGPT
+It looks like you have a Flask route set up for handling both GET and POST requests at the root URL ("/"). When a POST request is received, it retrieves the user's query from a form, executes a SQL query to fetch results from a database, and then returns those results to be displayed on a template called "query_result.html".
+
+However, there are a couple of issues in your code:
+
+1. There's a typo in your SQL query. The `LIKE` keyword should not have an equal sign after it.
+2. You're missing the `render_template` function call when the request method is not POST.
+
+Here's the corrected version of your code:
+
+```python
+import sqlite3
+from flask import Flask, request, render_template
+
+app = Flask(__name__)
+
+def get_db_connection():
+    # Implement this function to return a connection to your SQLite database
+    pass
+
+def logit(message):
+    # Implement your logging function here
+    pass
+
+@app.route('/', methods=['GET', 'POST'])
+def query_form():
+    if request.method == 'POST':
+        # Get the user query from the form
+        query = request.form['query']
+        # Execute the query and fetch results
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        logit(query)
+        cursor.execute("SELECT words FROM ipynb WHERE words LIKE ? LIMIT 2", (query,))
+        results = cursor.fetchall()
+        conn.close()
+        logit(results)
+        return render_template('query_result.html', query=query, results=results)
+    return render_template('query_form.html')
+
+if __name__ == '__main__':
+    app.run(debug=True)
+```
+
+Make sure to replace the `get_db_connection()` function with your implementation to connect to your SQLite database. Also, implement the `logit()` function to handle logging according to your requirements. Additionally, replace `'query_form.html'` with the actual name of your HTML template for rendering the form.
+user
+ query = "video"     
+cursor.execute("SELECT words FROM ipynb WHERE words LIKE ? LIMIT 2", (query,))
+if column 'words' contains the query 'video' i want it to print
+ChatGPT
+To achieve your requirement, you can iterate through the results fetched from the database and check if the query string exists in the 'words' column. If it does, you can print it. Here's how you can modify your code to achieve this:
+
+```python
+import sqlite3
+
+# Assuming you have a function to get a database connection
+def get_db_connection():
+    return sqlite3.connect('your_database.db')
+
+query = "video"
+
+conn = get_db_connection()
+cursor = conn.cursor()
+
+cursor.execute("SELECT words FROM ipynb WHERE words LIKE ? LIMIT 2", (f'%{query}%',))
+
+results = cursor.fetchall()
+
+for row in results:
+    if query in row[0]:
+        print(row[0])
+
+conn.close()
+```
+
+This code fetches rows from the database where the 'words' column contains the query string 'video'. If found, it prints those rows. Adjust the database connection and query as needed for your specific application.
+user
+import sqlite3
+
+# Assuming you have a function to get a database connection
+def get_db_connection():
+    return sqlite3.connect('first_100.db')
+
+query = b"import"
+
+conn = get_db_connection()
+cursor = conn.cursor()
+
+cursor.execute("SELECT content FROM ipynb limit 1")
+
+results = cursor.fetchall()
+
+for row in results:
+    if query in row[0]:
+        print(row[0])
+
+conn.close()
+THIS WORKS ______________
+import sqlite3
+
+# Assuming you have a function to get a database connection
+def get_db_connection():
+    return sqlite3.connect('first_100.db')
+
+query = b"import"
+
+conn = get_db_connection()
+cursor = conn.cursor()
+
+cursor.execute("SELECT content FROM ipynb WHERE content LIKE ? LIMIT 2", (f'%{query}%',))
+
+results = cursor.fetchall()
+
+for row in results:
+    if query in row[0]:
+        print(row[0])
+
+conn.close()
+THIS DOES NOT WORK WHY ?
+ChatGPT
+The reason the second code snippet does not work is due to how you are passing the query parameter in the `execute` method. When you use a parameterized query with SQLite, you need to pass the query parameter as a tuple. However, in your second code snippet, you are trying to pass the query directly with the f-string formatting, which is not correctly interpreted as a parameterized query.
+
+Here's the corrected version of your second code snippet:
+
+```python
+import sqlite3
+
+# Assuming you have a function to get a database connection
+def get_db_connection():
+    return sqlite3.connect('first_100.db')
+
+query = b"import"
+
+conn = get_db_connection()
+cursor = conn.cursor()
+
+# Pass the query parameter as a tuple to the execute method
+cursor.execute("SELECT content FROM ipynb WHERE content LIKE ? LIMIT 2", (f'%{query}%',))
+
+results = cursor.fetchall()
+
+for row in results:
+    if query in row[0]:
+        print(row[0])
+
+conn.close()
+```
+
+By passing the query parameter as a tuple `(f'%{query}%',)`, it will correctly interpolate the value into the query string, enabling the `LIKE` operator to work as expected. This should resolve the issue you were encountering.
+user
+it still does not work 
+ChatGPT
+I apologize for the confusion. Let's try another approach. Since you are using a bytes object for the query, let's convert it to a string before passing it to the execute method. Here's the updated code:
+
+```python
+import sqlite3
+
+# Assuming you have a function to get a database connection
+def get_db_connection():
+    return sqlite3.connect('first_100.db')
+
+query = b"import"
+query_string = query.decode('utf-8')  # Convert bytes to string
+
+conn = get_db_connection()
+cursor = conn.cursor()
+
+cursor.execute("SELECT content FROM ipynb WHERE content LIKE ? LIMIT 2", ('%' + query_string + '%',))
+
+results = cursor.fetchall()
+
+for row in results:
+    if query in row[0]:
+        print(row[0])
+
+conn.close()
+```
+
+This code should correctly execute the query using the `LIKE` operator with the bytes query string. We first decode the bytes object to a string using the `decode()` method, and then concatenate it with the wildcard `%` before and after the query string in the execute statement. This should effectively search for occurrences of the bytes query in the content column of your database. Let me know if this works for you.
+user
+that script worked fine, but not in my Flask app 
+@app.route('/', methods=['GET', 'POST'])
+def query_form():
+    if request.method == 'POST':
+        # Get the user query from the form
+        query = request.form['query']
+        # Execute the query and fetch results
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        logit(query)
+        query_string = query.decode('utf-8')  # Convert bytes to string
+
+        cursor.execute("SELECT words FROM ipynb WHERE words LIKE ? LIMIT 2", ('%' + query_string + '%',))
+
+        results = cursor.fetchall()
+        conn.close()
+        logit(results)
+        return render_template('query_result.html', query=query, results=results)
+    return render_template('query_form.html')
+ AttributeError: 'str' object has no attribute 'decode'
+ChatGPT
+The error you're encountering, `'str' object has no attribute 'decode'`, indicates that the `query` variable you're trying to decode is already a string, not a bytes object. This suggests that the form data you're receiving is already decoded.
+
+In a Flask application, the form data is typically decoded by Flask before it reaches your route. Therefore, you can directly use the `query` variable without decoding it.
+
+Here's the modified code for your Flask route:
+
+```python
+import sqlite3
+from flask import Flask, request, render_template
+
+app = Flask(__name__)
+
+# Assuming you have a function to get a database connection
+def get_db_connection():
+    return sqlite3.connect('first_100.db')
+
+@app.route('/', methods=['GET', 'POST'])
+def query_form():
+    if request.method == 'POST':
+        # Get the user query from the form
+        query = request.form['query']
+        # Execute the query and fetch results
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        logit(query)
+
+        cursor.execute("SELECT words FROM ipynb WHERE words LIKE ? LIMIT 2", ('%' + query + '%',))
+
+        results = cursor.fetchall()
+        conn.close()
+        logit(results)
+        return render_template('query_result.html', query=query, results=results)
+    return render_template('query_form.html')
+
+if __name__ == '__main__':
+    app.run(debug=True)
+```
+
+This code directly uses the `query` variable without any decoding. It assumes that the form data sent via POST request to your Flask application is already in Unicode format. With this change, your Flask application should handle the form data correctly. Let me know if you encounter any further issues!
+user
+Query Result
+Query: video
+
+<sqlite3.Row object at 0x7fb3c4d9b750>
+<sqlite3.Row object at 0x7fb3c4d9b7f0>     This is the page result ?
+ChatGPT
+It appears that the `results` variable contains `sqlite3.Row` objects rather than the actual content you were expecting. This is because the `fetchall()` method returns a list of rows represented as `sqlite3.Row` objects by default.
+
+To access the actual content of the rows, you need to extract the values from the rows. Each row is iterable, so you can iterate over them to access the values. Here's how you can modify your code to print the content of each row:
+
+```python
+@app.route('/', methods=['GET', 'POST'])
+def query_form():
+    if request.method == 'POST':
+        # Get the user query from the form
+        query = request.form['query']
+        # Execute the query and fetch results
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        logit(query)
+
+        cursor.execute("SELECT words FROM ipynb WHERE words LIKE ? LIMIT 2", ('%' + query + '%',))
+
+        rows = cursor.fetchall()
+        results = [row[0] for row in rows]  # Extract content from rows
+
+        conn.close()
+        logit(results)
+        return render_template('query_result.html', query=query, results=results)
+    return render_template('query_form.html')
+```
+
+This code snippet modifies the `results` variable to contain the actual content extracted from each row. It iterates over each row returned by `fetchall()`, extracts the first column value (assuming 'words' is the first column), and stores them in the `results` list. This should now display the actual content of each row in the query result page. Let me know if it works as expected!
+user
+       rows = cursor.fetchall()        
+        results = [row[0] for row in rows]      
+        ?
+ChatGPT
+In the provided code snippet:
+
+```python
+rows = cursor.fetchall()
+results = [row[0] for row in rows]
+```
+
+We're fetching all the rows returned by the SQL query using the `fetchall()` method and storing them in the `rows` variable. Then, we're iterating over each row in `rows` using a list comprehension and extracting the first element of each row (assuming that the query returns a single column) using `row[0]`. Finally, we're storing these extracted values in the `results` list.
+
+This code effectively extracts the first column values from each row returned by the query and stores them in the `results` list. The resulting `results` list contains the content you're interested in, ready to be passed to the template for rendering or further processing. If you have any further questions or need additional assistance, feel free to ask!
+user
+Query Result
+Query: video
+
+b'\n\n@app.route(\'/build_stackedvids\')\ndef build_stackedvids():\n # Get a random video and image from the static folder\n video_filename = random.choice(glob.glob(\'static/square_vids/*.mp4\'))\n image_filename = random.choice(glob.glob(\'static/squares/*.jpg\'))\n \n # Load the video and image files as clips\n video_clip = VideoFileClip(video_filename)\n image_clip = ImageClip(image_filename).set_duration(video_clip.duration)\n \n # Resize the clips to 640x640\n video_clip = video_clip.resize((640, 640))\n image_clip = image_clip.resize((640, 640))\n \n # Create a black clip to fill the bottom half of the final clip\n black_clip = ColorClip(size=(640, 1280), color=(0, 0, 0)).set_duration(video_clip.duration)\n \n # Combine the clips vertically using CompositeVideoClip\n final_clip = CompositeVideoClip([video_clip, image_clip.set_position((0, 640)), black_clip.set_position((0, 640))])\n \n # Export the final clip as a video file\n timestr = time.strftime("%Y%m%d-%H%M%S")\n video_filename = \'static/stacked_vids/stacked_vids\'+timestr+\'video.mp4\'\n final_clip_path = \'static/stacked_vids/stacked_video.mp4\'\n final_clip.write_videofile(final_clip_path)\n final_clip.write_videofile(video_filename)\n \n return render_template(\'/build_stackedvids.html\', stackedvid_url=final_clip_path)\n\nThe script you gave me makes a square video. \nI want a 640x1280 video mp4 on top, and a still image on the bottom\n \n \n \n@app.route(\'/build_stackedvids\')\ndef build_stackedvids():\n # Get a random video and image from the static folder\n video_filename = random.choice(glob.glob(\'static/square_vids/*.mp4\'))\n image_filename = random.choice(glob.glob(\'static/squares/*.jpg\'))\n \n # Load the video and image files as clips\n video_clip = VideoFileClip(video_filename)\n image_clip = ImageClip(image_filename).set_duration(video_clip.duration)\n \n # Resize the clips to 640x640\n video_clip = video_clip.resize((640, 640))\n image_clip = image_clip.resize((640, 640))\n \n # Create a black clip to fill the top half of the final clip\n black_clip_top = ColorClip(size=(640, 640), color=(0, 0, 0)).set_duration(video_clip.duration)\n \n # Create a black clip to fill the bottom half of the final clip\n black_clip_bottom = ColorClip(size=(640, 640), color=(0, 0, 0)).set_duration(video_clip.duration)\n \n # Combine the clips vertically using CompositeVideoClip\n final_clip = CompositeVideoClip([\n black_clip_top.set_position((0, 0)),\n video_clip.set_position((0, 640)),\n image_clip.set_position((0, 640 + 640)),\n black_clip_bottom.set_position((0, 640 + 640 + 640))\n ], size=(640, 1280))\n \n # Export the final clip as a video file\n timestr = time.strftime("%Y%m%d-%H%M%S")\n video_filename = \'static/stacked_vids/stacked_vids\'+timestr+\'video.mp4\'\n final_clip_path = \'static/stacked_vids/stacked_video.mp4\'\n final_clip.write_videofile(final_clip_path)\n final_clip.write_videofile(video_filename)\n \n return render_template(\'/build_stackedvids.html\', stackedvid_url=final_clip_path)\n\n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n file "/home/jack/Desktop/FLASK/app.py", line 292, in search\n\n phrase = request.form[\'phrase\']\n\n File "/home/jack/Desktop/FLASK/flask_venv/lib/python3.8/site-packages/werkzeug/datastructures.py", line 375, in __getitem__\n\n raise exceptions.BadRequestKeyError(key)\n\n werkzeug.exceptions.BadRequestKeyError: 400 Bad Request: The browser (or proxy) sent a request that this server could not understand.\n KeyError: \'phrase\'\n\n\n\nfrom flask import Flask, render_template\nfrom PIL import Image\nimport os\nimport random\nimport imageio\n\napp = Flask(__name__)\n\n@app.route("/make_animation")\ndef make_animation():\n # Get a list of all files 
+ how do I show the formated text >
+ChatGPT
+To display formatted text in your Flask application, you can use HTML and CSS. Here's how you can present the query result in a formatted manner:
+
+1. Wrap the query result in a `<pre>` tag to maintain the formatting.
+2. Optionally, you can add some CSS to style the text within the `<pre>` tag.
+
+Here's an example of how you can implement this in your Flask template:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Query Result</title>
+    <style>
+        /* Optional CSS for styling the pre tag */
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>Query Result</h1>
+    <p>Query: {{ query }}</p>
+    <pre>
+        {{ result_text }}
+    </pre>
+</body>
+</html>
+```
+
+In your Flask route, you can pass the formatted text to the template using the `render_template` function. Here's how you can modify your route:
+
+```python
+from flask import Flask, render_template
+
+app = Flask(__name__)
+
+@app.route('/', methods=['GET'])
+def query_result():
+    # Sample query result
+    query = "video"
+    result_text = """
+        @app.route('/build_stackedvids')
+        def build_stackedvids():
+            # Get a random video and image from the static folder
+            video_filename = random.choice(glob.glob('static/square_vids/*.mp4'))
+            image_filename = random.choice(glob.glob('static/squares/*.jpg'))
+
+            # Load the video and image files as clips
+            video_clip = VideoFileClip(video_filename)
+            image_clip = ImageClip(image_filename).set_duration(video_clip.duration)
+
+            # Resize the clips to 640x640
+            video_clip = video_clip.resize((640, 640))
+            image_clip = image_clip.resize((640, 640))
+
+            # Create a black clip to fill the bottom half of the final clip
+            black_clip = ColorClip(size=(640, 1280), color=(0, 0, 0)).set_duration(video_clip.duration)
+
+            # Combine the clips vertically using CompositeVideoClip
+            final_clip = CompositeVideoClip([video_clip, image_clip.set_position((0, 640)), black_clip.set_position((0, 640))])
+
+            # Export the final clip as a video file
+            timestr = time.strftime("%Y%m%d-%H%M%S")
+            video_filename = 'static/stacked_vids/stacked_vids'+timestr+'video.mp4'
+            final_clip_path = 'static/stacked_vids/stacked_video.mp4'
+            final_clip.write_videofile(final_clip_path)
+            final_clip.write_videofile(video_filename)
+
+            return render_template('/build_stackedvids.html', stackedvid_url=final_clip_path)
+    """
+
+    return render_template('query_result.html', query=query, result_text=result_text)
+
+if __name__ == '__main__':
+    app.run(debug=True)
+```
+
+This will render the query result in a formatted manner on your Flask web page. Adjust the `result_text` variable to contain the actual query result you want to display.
+user
+my results ar bytstrings
+b'\n\n@app.route(\'/build_stackedvids\')\ndef build_stackedvids():\n    # Get a random video and image from the static folder\n   
+b'\n\n@app.route(\'/build_stackedvids\')\ndef build_stackedvids():\n    # Get a random video and image from the static folder\n 
+I need readable
+ChatGPT
+To display the byte strings as readable text in your Flask application, you need to decode them from bytes to a string using the appropriate encoding. Once decoded, you can present them as plain text in your HTML template.
+
+Here's how you can modify your Flask route to decode the byte strings and pass them to the template:
+
+```python
+from flask import Flask, render_template
+
+app = Flask(__name__)
+
+@app.route('/', methods=['GET'])
+def query_result():
+    # Sample byte strings
+    byte_string1 = b'\n\n@app.route(\'/build_stackedvids\')\ndef build_stackedvids():\n    # Get a random video and image from the static folder\n'
+    byte_string2 = b'\n\n@app.route(\'/build_stackedvids\')\ndef build_stackedvids():\n    # Get a random video and image from the static folder\n'
+
+    # Decode byte strings to strings
+    result_text1 = byte_string1.decode('utf-8')
+    result_text2 = byte_string2.decode('utf-8')
+
+    return render_template('query_result.html', result_text1=result_text1, result_text2=result_text2)
+
+if __name__ == '__main__':
+    app.run(debug=True)
+```
+
+Then, in your HTML template (`query_result.html`), you can display the decoded byte strings as readable text:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Query Result</title>
+</head>
+<body>
+    <h1>Query Result</h1>
+    <div>
+        <h2>Result 1:</h2>
+        <pre>{{ result_text1 }}</pre>
+    </div>
+    <div>
+        <h2>Result 2:</h2>
+        <pre>{{ result_text2 }}</pre>
+    </div>
+</body>
+</html>
+```
+
+This will display the decoded byte strings as readable text in your Flask application. Adjust the byte strings and their decoding as necessary based on your actual data.
+user
+       rows = cursor.fetchall()
+        # decode the rows decode.('utf-8')
+        # result_text1 = byte_string1.decode('utf-8')        
+        results = [row[0] for row in rows]      
+
+ChatGPT
+If you want to decode the byte strings returned from the database into readable text before passing them to your template in a Flask application, you can modify your code like this:
+
+```python
+@app.route('/', methods=['GET', 'POST'])
+def query_form():
+    if request.method == 'POST':
+        # Get the user query from the form
+        query = request.form['query']
+        # Execute the query and fetch results
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        logit(query)
+
+        cursor.execute("SELECT words FROM ipynb WHERE words LIKE ? LIMIT 2", ('%' + query + '%',))
+
+        rows = cursor.fetchall()
+
+        # Decode byte strings into readable text
+        results = [row[0].decode('utf-8') for row in rows]
+
+        conn.close()
+        logit(results)
+        return render_template('query_result.html', query=query, results=results)
+    return render_template('query_form.html')
+```
+
+In this code snippet, after fetching the rows from the database, each byte string in the `results` list is decoded into a string using the `decode()` method with the 'utf-8' encoding. This will convert the byte strings into readable text. Then, the decoded results are passed to the template for rendering.
+
+Make sure to adjust the decoding part according to the actual encoding used in your database if it's different from 'utf-8'. This modification should ensure that the query results are displayed as readable text in your Flask application.
+user
+That works fine 
+ChatGPT
+Great! I'm glad to hear that it works fine for you. If you have any more questions or need further assistance with your Flask application or any other topic, feel free to ask. I'm here to help!
+user
+Now I want to show the row ids
+ChatGPT
+If you want to display the row IDs along with the decoded text in your Flask application, you can modify the code to include them in the `results` list. Here's how you can do it:
+
+```python
+@app.route('/', methods=['GET', 'POST'])
+def query_form():
+    if request.method == 'POST':
+        # Get the user query from the form
+        query = request.form['query']
+        # Execute the query and fetch results
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        logit(query)
+
+        cursor.execute("SELECT rowid, words FROM ipynb WHERE words LIKE ? LIMIT 2", ('%' + query + '%',))
+
+        rows = cursor.fetchall()
+
+        # Decode byte strings into readable text and include row IDs
+        results = [{'rowid': row[0], 'text': row[1].decode('utf-8')} for row in rows]
+
+        conn.close()
+        logit(results)
+        return render_template('query_result.html', query=query, results=results)
+    return render_template('query_form.html')
+```
+
+In this modified code, each row fetched from the database includes both the row ID (`row[0]`) and the decoded text (`row[1]`). We then create a list of dictionaries where each dictionary contains the row ID and the decoded text for each row. This list is stored in the `results` variable and passed to the template for rendering.
+
+You can then update your template (`query_result.html`) to display both the row IDs and the text:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Query Result</title>
+</head>
+<body>
+    <h1>Query Result</h1>
+    <p>Query: {{ query }}</p>
+    <div>
+        {% for result in results %}
+            <div>
+                <p>Row ID: {{ result.rowid }}</p>
+                <p>Text: {{ result.text }}</p>
+            </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
+```
+
+This will display both the row IDs and the text associated with each row in your Flask application. Adjust the template as needed to fit your desired layout and styling.
+user
+I needed pre tag
+body>
+        <h1>Query Result</h1>
+        <p>Query: {{ query }}</p>
+        <div>
+            {% for result in results %}
+                <div>
+                    <p>Row ID: {{ result.rowid }}</p>
+                    <pre>Text: {{ result.text }}</pre>
+                </div>
+            {% endfor %}
+        </div>
+    </body>
+    </html>
+ChatGPT
+Absolutely, if you prefer to display the text within `<pre>` tags for preformatted text, you can adjust the HTML template as follows:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Query Result</title>
+</head>
+<body>
+    <h1>Query Result</h1>
+    <p>Query: {{ query }}</p>
+    <div>
+        {% for result in results %}
+            <div>
+                <p>Row ID: {{ result.rowid }}</p>
+                <pre>Text: {{ result.text }}</pre>
+            </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
+```
+
+This template will render each row's text within `<pre>` tags, preserving the whitespace and formatting of the text. Let me know if you need further assistance!
+user
+Now I have the ROWID  Display in a textarea then edit and save
+ChatGPT
+If you want to allow users to edit the text associated with each row in a textarea and then save the changes, you can modify your HTML template and Flask route accordingly.
+
+Here's how you can do it:
+
+1. Update the HTML template to include a textarea for each row's text.
+2. Add a form around each textarea to submit the edited text.
+3. Modify the Flask route to handle the form submission and update the database with the edited text.
+
+HTML template (`query_result.html`):
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Query Result</title>
+</head>
+<body>
+    <h1>Query Result</h1>
+    <p>Query: {{ query }}</p>
+    <div>
+        <form method="POST" action="/update_text">
+            {% for result in results %}
+                <div>
+                    <p>Row ID: {{ result.rowid }}</p>
+                    <textarea name="edited_text">{{ result.text }}</textarea>
+                    <input type="hidden" name="rowid" value="{{ result.rowid }}">
+                    <button type="submit">Save</button>
+                </div>
+            {% endfor %}
+        </form>
+    </div>
+</body>
+</html>
+```
+
+Flask route (`app.py`):
+```python
+from flask import Flask, render_template, request, redirect
+
+app = Flask(__name__)
+
+@app.route('/', methods=['GET'])
+def query_result():
+    # Assuming results and query are passed from previous route
+    # Fetch results from the database
+    results = [
+        {'rowid': 1, 'text': 'Sample text 1'},
+        {'rowid': 2, 'text': 'Sample text 2'},
+        # Add more rows as needed
+    ]
+    query = "video"
+
+    return render_template('query_result.html', query=query, results=results)
+
+@app.route('/update_text', methods=['POST'])
+def update_text():
+    edited_text = request.form['edited_text']
+    rowid = request.form['rowid']
+
+    # Update the text in the database using the rowid
+    # You'll need to implement this part based on your database structure
+
+    # After updating, redirect back to the query result page
+    return redirect('/')
+```
+
+This setup will display a textarea for each row's text in the query result page. When the user edits the text and clicks the "Save" button, the edited text along with the rowid will be submitted to the `/update_text` route. In the `update_text` route, you can extract the edited text and rowid from the form submission and update the database accordingly. Finally, the user will be redirected back to the query result page after saving the changes.
+user
+
+I want an edit route different than the view I already have 
+ChatGPT
+If you want to create a separate route for editing the text, you can follow these steps:
+
+1. Create a new HTML template for the editing page.
+2. Modify the Flask route to render the editing page and handle the form submission for updating the text.
+
+Here's how you can do it:
+
+HTML template for editing (`edit_text.html`):
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Text</title>
+</head>
+<body>
+    <h1>Edit Text</h1>
+    <form method="POST" action="/update_text">
+        <textarea name="edited_text">{{ text }}</textarea>
+        <input type="hidden" name="rowid" value="{{ rowid }}">
+        <button type="submit">Save</button>
+    </form>
+</body>
+</html>
+```
+
+Flask route for editing (`app.py`):
+```python
+from flask import Flask, render_template, request, redirect
+
+app = Flask(__name__)
+
+@app.route('/', methods=['GET'])
+def query_result():
+    # Assuming results are passed from previous route
+    # Fetch results from the database
+    results = [
+        {'rowid': 1, 'text': 'Sample text 1'},
+        {'rowid': 2, 'text': 'Sample text 2'},
+        # Add more rows as needed
+    ]
+    query = "video"
+
+    return render_template('query_result.html', query=query, results=results)
+
+@app.route('/edit/<int:rowid>', methods=['GET'])
+def edit_text(rowid):
+    # Fetch text associated with the given rowid from the database
+    # Replace this with your database query
+    text = "Sample text"  # Example text
+    return render_template('edit_text.html', text=text, rowid=rowid)
+
+@app.route('/update_text', methods=['POST'])
+def update_text():
+    edited_text = request.form['edited_text']
+    rowid = request.form['rowid']
+
+    # Update the text in the database using the rowid
+    # You'll need to implement this part based on your database structure
+
+    # After updating, redirect back to the query result page
+    return redirect('/')
+```
+
+In this setup, the `/edit/<rowid>` route is responsible for rendering the editing page (`edit_text.html`). It takes the `rowid` as a parameter to identify which row's text needs to be edited. When the user submits the form on the editing page, the form data is sent to the `/update_text` route, which updates the text in the database and redirects back to the query result page.
+user
+Does that include all by bytes decode and pre tags ?
+ChatGPT
+No, the provided code snippets do not include decoding byte strings into readable text or using `<pre>` tags. Let's update the code to incorporate those features:
+
+Here's the modified version:
+
+HTML template for editing (`edit_text.html`):
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Text</title>
+</head>
+<body>
+    <h1>Edit Text</h1>
+    <form method="POST" action="/update_text">
+        <textarea name="edited_text">{{ text }}</textarea>
+        <input type="hidden" name="rowid" value="{{ rowid }}">
+        <button type="submit">Save</button>
+    </form>
+</body>
+</html>
+```
+
+Flask route for editing (`app.py`):
+```python
+from flask import Flask, render_template, request, redirect
+
+app = Flask(__name__)
+
+@app.route('/', methods=['GET'])
+def query_result():
+    # Assuming results are passed from previous route
+    # Fetch results from the database
+    results = [
+        {'rowid': 1, 'text': b'Sample text 1'},
+        {'rowid': 2, 'text': b'Sample text 2'},
+        # Add more rows as needed
+    ]
+    query = "video"
+
+    # Decode byte strings into readable text
+    for result in results:
+        result['text'] = result['text'].decode('utf-8')
+
+    return render_template('query_result.html', query=query, results=results)
+
+@app.route('/edit/<int:rowid>', methods=['GET'])
+def edit_text(rowid):
+    # Fetch text associated with the given rowid from the database
+    # Replace this with your database query
+    text = b'Sample text'  # Example text
+    text = text.decode('utf-8')  # Decode byte string into readable text
+    return render_template('edit_text.html', text=text, rowid=rowid)
+
+@app.route('/update_text', methods=['POST'])
+def update_text():
+    edited_text = request.form['edited_text']
+    rowid = request.form['rowid']
+
+    # Update the text in the database using the rowid
+    # You'll need to implement this part based on your database structure
+
+    # After updating, redirect back to the query result page
+    return redirect('/')
+```
+
+This updated code includes decoding byte strings into readable text and using `<pre>` tags. Let me know if you need further assistance!
+user
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Query Result</title>
+
+    <style>
+        /* Optional CSS for styling the pre tag */
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+
+</head>
+
+
+<body>
+
+    <body>
+        <h1>Query Result</h1>
+        <p>Query: {{ query }}</p>
+        <div>
+            {% for result in results %}
+                <div>
+                    <p>Row ID: {{ result.rowid }}</p>
+                    <pre>Text: {{ result.text }}</pre>
+                </div>
+            {% endfor %}
+        </div>
+    </body>
+    </html>
+    
+ I want to add an input  button for ROWID and a submit to edit_text
+ChatGPT
+To add an input field for the row ID and a submit button to edit the text, you can modify the HTML template as follows:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Text</title>
+</head>
+<body>
+    <h1>Edit Text</h1>
+    <form method="POST" action="/edit_text">
+        <label for="rowid">Row ID:</label>
+        <input type="text" id="rowid" name="rowid">
+        <button type="submit">Edit</button>
+    </form>
+</body>
+</html>
+```
+
+In this form, users can input the row ID they want to edit, and when they click the "Edit" button, the form data will be submitted to the `/edit_text` route.
+
+Next, you need to create the Flask route to handle the form submission and redirect users to the editing page:
+
+```python
+@app.route('/edit_text', methods=['POST'])
+def edit_text_redirect():
+    rowid = request.form['rowid']
+    # Redirect to the edit page for the specified rowid
+    return redirect(f'/edit/{rowid}')
+```
+
+This route will extract the row ID from the form submission and redirect the user to the editing page (`/edit/<rowid>`). Ensure you have the appropriate route for editing the text (`/edit/<rowid>`) as mentioned in the previous responses.
+
+With these changes, users can input the row ID they want to edit, submit the form, and be redirected to the editing page for that specific row ID. Let me know if you need further assistance!
+user
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Query Result</title>
+
+    <style>
+        /* Optional CSS for styling the pre tag */
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+
+</head>
+
+
+<body>
+
+    <body>
+        <h1>Edit Text</h1>
+        <form method="POST" action="/edit">
+            <label for="rowid">Row ID:</label>
+            <input type="text" id="rowid" name="rowid">
+            <button type="submit">Edit</button>
+        </form>
+
+
+
+        <h1>Query Result</h1>
+        <p>Query: {{ query }}</p>
+        <div>
+            {% for result in results %}
+                <div>
+                    <p>Row ID: {{ result.rowid }}</p>
+                    <pre>Text: {{ result.text }}</pre>
+                </div>
+            {% endfor %}
+        </div>
+    </body>
+    </html>
+    
+ 
+@app.route('/edit', methods=['GET', 'POST'])
+def edit_data():
+    if request.method == 'POST':
+        # Get the edited data from the form
+        edited_data = request.form['edited_data']
+        rowid = request.form['rowid']
+        # Update the database with the edited data
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE ipynb SET words = ? WHERE rowid = ?", (edited_data, rowid))
+        conn.commit()
+        conn.close()
+        return redirect('/')
+    else:
+        # Get the data to edit based on rowid
+        rowid = request.args.get('rowid')
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT words FROM ipynb WHERE rowid = ?", (rowid,))
+        data = cursor.fetchone()
+        conn.close()
+        return render_template('edit_data.html', data=data)
+BadRequestKeyError
+werkzeug.exceptions.BadRequestKeyError: 400 Bad Request: The browser (or proxy) sent a request that this server could not understand.
+KeyError: 'edited_data'
+
+
+ChatGPT
+It seems there is a mismatch between the form field name in the HTML template and the name being used in the Flask route. In the HTML template, you have named the input field "rowid":
+
+```html
+<input type="text" id="rowid" name="rowid">
+```
+
+However, in the Flask route, you are trying to access a form field named "edited_data":
+
+```python
+edited_data = request.form['edited_data']
+```
+
+To resolve this issue, you need to make sure that the form field names match in both the HTML template and the Flask route. Since you want to edit the text associated with a specific row ID, you should name the input field accordingly. Let's adjust the form field name in the HTML template to "edited_text":
+
+```html
+<input type="text" id="edited_text" name="edited_text">
+```
+
+And then modify the Flask route to access this field:
+
+```python
+edited_data = request.form['edited_text']
+```
+
+Here's the corrected HTML template:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Text</title>
+
+    <style>
+        /* Optional CSS for styling the pre tag */
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+
+</head>
+
+
+<body>
+
+    <h1>Edit Text</h1>
+    <form method="POST" action="/edit">
+        <label for="rowid">Row ID:</label>
+        <input type="text" id="rowid" name="rowid">
+        <button type="submit">Edit</button>
+    </form>
+
+    <h1>Query Result</h1>
+    <p>Query: {{ query }}</p>
+    <div>
+        {% for result in results %}
+            <div>
+                <p>Row ID: {{ result.rowid }}</p>
+                <pre>Text: {{ result.text }}</pre>
+            </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
+```
+
+And the corrected Flask route:
+
+```python
+@app.route('/edit', methods=['GET', 'POST'])
+def edit_data():
+    if request.method == 'POST':
+        # Get the edited data from the form
+        edited_data = request.form['edited_text']
+        rowid = request.form['rowid']
+        # Update the database with the edited data
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE ipynb SET words = ? WHERE rowid = ?", (edited_data, rowid))
+        conn.commit()
+        conn.close()
+        return redirect('/')
+    else:
+        # Get the data to edit based on rowid
+        rowid = request.args.get('rowid')
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT words FROM ipynb WHERE rowid = ?", (rowid,))
+        data = cursor.fetchone()
+        conn.close()
+        return render_template('edit_data.html', data=data)
+```
+
+This should resolve the KeyError you encountered. Let me know if you need further assistance!
+user
+BadRequestKeyError
+werkzeug.exceptions.BadRequestKeyError: 400 Bad Request: The browser (or proxy) sent a request that this server could not understand.
+KeyError: 'edited_text'
+
+
+ChatGPT
+The error indicates that the form submission does not contain a field with the name "edited_text". Let's ensure that the input field in the HTML form is correctly named as "edited_text". Here's the corrected HTML template:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Text</title>
+
+    <style>
+        /* Optional CSS for styling the pre tag */
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <h1>Edit Text</h1>
+    <form method="POST" action="/edit">
+        <label for="rowid">Row ID:</label>
+        <input type="text" id="rowid" name="rowid">
+        <button type="submit">Edit</button>
+    </form>
+
+    <h1>Query Result</h1>
+    <p>Query: {{ query }}</p>
+    <div>
+        {% for result in results %}
+            <div>
+                <p>Row ID: {{ result.rowid }}</p>
+                <pre>Text: {{ result.text }}</pre>
+            </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
+```
+
+In the form, make sure that the input field for editing the text is named "edited_text":
+
+```html
+<input type="text" id="edited_text" name="edited_text">
+```
+
+If this correction doesn't resolve the issue, please double-check the Flask route to ensure that it correctly handles the form submission and retrieves the form field named "edited_text" from the request object. Let me know if you need further assistance!
+user
+<input type="text" id="edited_text" name="edited_text">
+ WJat is the the dta should be in a text area shouldn't ii 
+ChatGPT
+Apologies for the oversight. You're correct; for editing text, it's more appropriate to use a textarea instead of an input field. Let's update the HTML form to use a textarea instead:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Text</title>
+
+    <style>
+        /* Optional CSS for styling the pre tag */
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <h1>Edit Text</h1>
+    <form method="POST" action="/edit">
+        <label for="rowid">Row ID:</label>
+        <input type="text" id="rowid" name="rowid">
+        <br>
+        <label for="edited_text">Edited Text:</label><br>
+        <textarea id="edited_text" name="edited_text" rows="5" cols="50"></textarea><br>
+        <button type="submit">Edit</button>
+    </form>
+
+    <h1>Query Result</h1>
+    <p>Query: {{ query }}</p>
+    <div>
+        {% for result in results %}
+            <div>
+                <p>Row ID: {{ result.rowid }}</p>
+                <pre>Text: {{ result.text }}</pre>
+            </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
+```
+
+Now, the text area named "edited_text" will allow users to input or edit text with multiple lines. This is more suitable for editing longer blocks of text compared to a single-line input field. Let me know if you need further assistance!
+user
+will the text area be filled in with the current rowid data ?
+ChatGPT
+To pre-fill the textarea with the current text associated with the given row ID, you'll need to fetch the corresponding text data from your database and pass it to the template rendering the edit page.
+
+Here's how you can modify the Flask route to achieve this:
+
+```python
+@app.route('/edit/<int:rowid>', methods=['GET', 'POST'])
+def edit_text(rowid):
+    if request.method == 'POST':
+        # Handle form submission for updating the text
+        edited_text = request.form['edited_text']
+
+        # Update the database with the edited text
+        # Your database update code goes here
+
+        # Redirect to the query result page or any other page as needed
+        return redirect('/')
+    else:
+        # Fetch the current text associated with the given rowid
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT words FROM ipynb WHERE rowid = ?", (rowid,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            current_text = row[0].decode('utf-8')  # Decode the text if it's stored as bytes
+        else:
+            current_text = ""  # If no text found for the given rowid
+
+        return render_template('edit_text.html', rowid=rowid, current_text=current_text)
+```
+
+And then in your HTML template, you can use Jinja to pre-fill the textarea with the current text:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Text</title>
+
+    <style>
+        /* Optional CSS for styling the pre tag */
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <h1>Edit Text</h1>
+    <form method="POST" action="/edit/{{ rowid }}">
+        <label for="rowid">Row ID:</label>
+        <input type="text" id="rowid" name="rowid" value="{{ rowid }}" readonly>
+        <br>
+        <label for="edited_text">Edited Text:</label><br>
+        <textarea id="edited_text" name="edited_text" rows="5" cols="50">{{ current_text }}</textarea><br>
+        <button type="submit">Edit</button>
+    </form>
+
+</body>
+</html>
+```
+
+With this setup, when a user navigates to the edit page (`/edit/<rowid>`), the current text associated with the specified row ID will be fetched from the database and pre-filled into the textarea. The user can then edit this text and submit the form to update it in the database. Let me know if you need further clarification!
+user
+from flask import Flask, render_template, request, redirect
+import sqlite3
+from icecream import ic
+import os
+import datetime
+from flask import request
+from flask import request
+app = Flask(__name__)
+debug_directory = "static/Logs"
+if not os.path.exists(debug_directory):
+    # If it doesn't exist, create it
+    os.mkdir(debug_directory)
+    print(f"The '{debug_directory}' directory has been created.")
+else:
+    print(f"The '{debug_directory}' directory already exists.")
+def logit(message):
+    log_file = debug_directory+"/app_log.txt"  # Replace with the actual path to your log file
+    timestamp = datetime.datetime.now().strftime("%A_%b-%d-%Y_%H-%M-%S")
+    with open(log_file, "a") as log:
+        log.write(f"{timestamp}: {message}\n")
+#logit("This is a DEBUG message")
+
+# Function to connect to the SQLite database
+def get_db_connection():
+    conn = sqlite3.connect('first_1000.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
+# Route to display the query form and results
+@app.route('/', methods=['GET', 'POST'])
+def query_form():
+    if request.method == 'POST':
+        # Get the user query from the form
+        query = request.form['query']
+        # Execute the query and fetch results
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        logit(query)
+
+        cursor.execute("SELECT rowid, words FROM ipynb WHERE words LIKE ? LIMIT 2", ('%' + query + '%',))
+
+        rows = cursor.fetchall()
+
+        # Decode byte strings into readable text and include row IDs
+        results = [{'rowid': row[0], 'text': row[1].decode('utf-8')} for row in rows]
+
+        conn.close()
+        logit(results)
+        return render_template('query_result.html', query=query, results=results)
+    return render_template('query_form.html')
+
+# Route to edit and save data
+@app.route('/edit', methods=['GET', 'POST'])
+def edit_data():
+    if request.method == 'POST':
+        # Get the edited data from the form
+        edited_data = request.form['edited_text']
+        rowid = request.form['rowid']
+        # Update the database with the edited data
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE ipynb SET words = ? WHERE rowid = ?", (edited_data, rowid))
+        conn.commit()
+        conn.close()
+        return redirect('/')
+    else:
+        # Get the data to edit based on rowid
+        rowid = request.args.get('rowid')
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT words FROM ipynb WHERE rowid = ?", (rowid,))
+        data = cursor.fetchone()
+        conn.close()
+        return render_template('edit_data.html', data=data)
+
+# Route to delete data
+#@app.route('/delete', methods=['POST'])
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5100)
+
+ can you fix this ?
+ChatGPT
+It seems like there might be an issue with the route for editing data (`/edit`). Let's review and correct the code:
+
+```python
+# Route to edit and save data
+@app.route('/edit/<int:rowid>', methods=['GET', 'POST'])
+def edit_data(rowid):
+    if request.method == 'POST':
+        # Get the edited data from the form
+        edited_data = request.form['edited_text']
+        # Update the database with the edited data
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE ipynb SET words = ? WHERE rowid = ?", (edited_data, rowid))
+        conn.commit()
+        conn.close()
+        return redirect('/')
+    else:
+        # Fetch the data to edit based on rowid
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT words FROM ipynb WHERE rowid = ?", (rowid,))
+        data = cursor.fetchone()
+        conn.close()
+        return render_template('edit_data.html', rowid=rowid, data=data['words'])
+
+# Edit page HTML template (edit_data.html)
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Data</title>
+</head>
+<body>
+    <h1>Edit Data</h1>
+    <form method="POST">
+        <input type="hidden" name="rowid" value="{{ rowid }}">
+        <label for="edited_text">Edited Text:</label><br>
+        <textarea id="edited_text" name="edited_text" rows="5" cols="50">{{ data }}</textarea><br>
+        <button type="submit">Save</button>
+    </form>
+</body>
+</html>
+```
+
+These changes ensure that the row ID is passed as part of the URL to the `/edit` route, and the edited text is updated based on the specified row ID. The HTML template `edit_data.html` is also updated to correctly display the current text for editing. Let me know if you need further assistance!
+user
+edit data is that a new page I have a edit _text .html ??
+ChatGPT
+Yes, you can create a separate HTML page for editing the text, named `edit_text.html`, if you prefer. Here's how you can structure your Flask app to include this new page:
+
+1. Update the Flask route for editing data to render the `edit_text.html` template:
+
+```python
+# Route to edit and save data
+@app.route('/edit/<int:rowid>', methods=['GET', 'POST'])
+def edit_data(rowid):
+    if request.method == 'POST':
+        # Get the edited data from the form
+        edited_text = request.form['edited_text']
+        # Update the database with the edited data
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE ipynb SET words = ? WHERE rowid = ?", (edited_text, rowid))
+        conn.commit()
+        conn.close()
+        return redirect('/')
+    else:
+        # Fetch the data to edit based on rowid
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT words FROM ipynb WHERE rowid = ?", (rowid,))
+        data = cursor.fetchone()
+        conn.close()
+        return render_template('edit_text.html', rowid=rowid, data=data['words'])
+```
+
+2. Create a new HTML template file named `edit_text.html` in your `templates` directory. This template will display a textarea pre-filled with the current text for editing:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Text</title>
+</head>
+<body>
+    <h1>Edit Text</h1>
+    <form method="POST">
+        <input type="hidden" name="rowid" value="{{ rowid }}">
+        <label for="edited_text">Edited Text:</label><br>
+        <textarea id="edited_text" name="edited_text" rows="5" cols="50">{{ data }}</textarea><br>
+        <button type="submit">Save</button>
+    </form>
+</body>
+</html>
+```
+
+With this setup, when a user navigates to the `/edit/<rowid>` route, they will see the `edit_text.html` page, which allows them to edit the text associated with the specified row ID. Let me know if you need further assistance!
+user
+so I need an edit _text.html and an edit_data.html 
+ChatGPT
+Yes, you can have separate HTML templates for editing text and editing other data if that fits your application's requirements. Here's how you can organize your templates:
+
+1. `edit_text.html`: This template is for editing text data.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Text</title>
+</head>
+<body>
+    <h1>Edit Text</h1>
+    <form method="POST">
+        <input type="hidden" name="rowid" value="{{ rowid }}">
+        <label for="edited_text">Edited Text:</label><br>
+        <textarea id="edited_text" name="edited_text" rows="5" cols="50">{{ data }}</textarea><br>
+        <button type="submit">Save</button>
+    </form>
+</body>
+</html>
+```
+
+2. `edit_data.html`: This template is for editing other types of data (if needed).
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Data</title>
+</head>
+<body>
+    <h1>Edit Data</h1>
+    <form method="POST">
+        <!-- Form fields for editing other data -->
+        <input type="hidden" name="rowid" value="{{ rowid }}">
+        <label for="edited_data">Edited Data:</label><br>
+        <input type="text" id="edited_data" name="edited_data" value="{{ data }}"><br>
+        <button type="submit">Save</button>
+    </form>
+</body>
+</html>
+```
+
+In your Flask routes, you can render these templates accordingly based on the type of data you want to edit. For editing text data, you render `edit_text.html`, and for editing other types of data, you render `edit_data.html`.
+
+Let me know if you have any further questions or if there's anything else I can assist you with!
+user
+When I entered an id and clicked  I got       
+http://localhost:5100/edit
+Not Found
+The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+ChatGPT
+It seems that the URL for the edit route is not being generated correctly. This might be due to a mismatch between the route defined in the Flask application and the link provided in the HTML template.
+
+Here's how you can fix it:
+
+1. Make sure the Flask route for editing data (`/edit/<int:rowid>`) is defined correctly in your Flask application.
+
+2. In the HTML template where you provide the link to edit the data, ensure that you include the row ID as part of the URL.
+
+For example, if you have a link like this in your template:
+
+```html
+<a href="/edit">Edit Data</a>
+```
+
+You need to modify it to include the row ID, like this:
+
+```html
+<a href="/edit/{{ rowid }}">Edit Data</a>
+```
+
+This will generate a URL like `http://localhost:5100/edit/123`, where `123` is the row ID.
+
+Ensure that you are passing the `rowid` variable correctly to the template rendering this link.
+
+If you have any further questions or issues, feel free to ask!
+user
+replace this ??
+      <h1>Edit Text</h1>
+        <form method="POST" action="/edit">
+            <label for="rowid">Row ID:</label>
+            <input type="text" id="rowid" name="rowid">
+            <button type="submit">Edit</button>
+        </form>
+ChatGPT
+Yes, you should replace that form with a link that includes the row ID in the URL. Here's how you can do it:
+
+```html
+<h1>Edit Text</h1>
+{% for result in results %}
+    <div>
+        <p>Row ID: {{ result.rowid }}</p>
+        <p>Text: {{ result.text }}</p>
+        <a href="/edit/{{ result.rowid }}">Edit</a>
+    </div>
+{% endfor %}
+```
+
+In this updated code snippet:
+
+- We loop through the `results` list to display each row of data.
+- For each row, we display the row ID and the text.
+- We create an edit link (`<a href="/edit/{{ result.rowid }}">Edit</a>`) where `{{ result.rowid }}` dynamically inserts the row ID into the URL.
+- When the user clicks on the "Edit" link, it will take them to the `/edit/<rowid>` route with the corresponding row ID in the URL.
+
+This way, each row displayed in the results will have an "Edit" link that allows the user to edit the associated text. Let me know if you need further assistance!
+user
+I dont have to list I know my row id it is displayed in querry results ?
+ChatGPT
+If you already know the row ID and it's displayed in the query results, you can simply create a link to edit that specific row using its ID. Here's how you can modify the form to achieve this:
+
+```html
+<h1>Edit Text</h1>
+<p>Row ID: {{ rowid }}</p>
+<form method="POST" action="/edit/{{ rowid }}">
+    <label for="edited_text">Edited Text:</label><br>
+    <textarea id="edited_text" name="edited_text" rows="5" cols="50">{{ data }}</textarea><br>
+    <button type="submit">Save</button>
+</form>
+```
+
+In this form:
+
+- We display the row ID directly on the page.
+- The form's `action` attribute is set to `/edit/{{ rowid }}`, which means it will submit the form data to the `/edit/<rowid>` route, where `<rowid>` will be replaced with the actual row ID.
+- The user can edit the text in the textarea field and submit the form to save the changes.
+
+This way, you don't need to input the row ID manually; it's already displayed on the page, and the form submits directly to the correct edit route based on that row ID. Let me know if you have any further questions!
+user
+http://localhost:5100/edit/3
+
+ChatGPT
+It seems like you've successfully constructed the URL `http://localhost:5100/edit/3`, which includes the row ID (`3`). This URL should direct you to the edit page for the row with ID `3`, where you can edit the text associated with that row.
+
+If you encounter any issues or have further questions, feel free to let me know!
+user
+ow I deed a button that when I enter an rowid it opens this page 
+ChatGPT
+To create a button that, when clicked, opens the edit page for a specific row ID, you can use a form with a hidden input field for the row ID and a submit button. Here's how you can do it:
+
+```html
+<form method="GET" action="/edit">
+    <label for="rowid">Enter Row ID:</label>
+    <input type="text" id="rowid" name="rowid">
+    <button type="submit">Edit Row</button>
+</form>
+```
+
+This form submits the entered row ID as a query parameter to the `/edit` route when the "Edit Row" button is clicked. In your Flask route for handling this form submission, you can then extract the row ID from the query parameters and redirect the user to the edit page for that row ID.
+
+For example, in your Flask route:
+
+```python
+from flask import redirect, url_for, request
+
+@app.route('/edit', methods=['GET'])
+def edit_row():
+    rowid = request.args.get('rowid')
+    if rowid:
+        return redirect(url_for('edit_data', rowid=rowid))
+    else:
+        # Handle the case when no row ID is provided
+        return "Please enter a valid Row ID"
+```
+
+In this Flask route, we extract the `rowid` from the query parameters using `request.args.get('rowid')`. If a `rowid` is provided, we redirect the user to the `edit_data` route with the specified `rowid`. If no `rowid` is provided, we display a message prompting the user to enter a valid Row ID.
+
+Ensure you have a route named `edit_data` that handles the editing of data for a specific row ID.
+
+Let me know if you need further clarification!
+user
+@app.route('/edit', methods=['GET'])
+def edit_row():
+    rowid = request.args.get('rowid')
+    if rowid:
+        return redirect(url_for('edit_data', rowid=rowid))
+    else:
+        # Handle the case when no row ID is provided
+        return "Please enter a valid Row ID"
+
+
+
+@app.route('/edit/<int:rowid>', methods=['GET', 'POST'])
+def edit_data(rowid):
+    if request.method == 'POST':
+        # Get the edited data from the form
+        edited_text = request.form['edited_text']
+        # Update the database with the edited data
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE ipynb SET words = ? WHERE rowid = ?", (edited_text, rowid))
+        conn.commit()
+        conn.close()
+        return redirect('/')
+    else:
+        # Fetch the data to edit based on rowid
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT words FROM ipynb WHERE rowid = ?", (rowid,))
+        data = cursor.fetchone()
+        conn.close()
+        return render_template('edit_text.html', rowid=rowid, data=data['words'])
+
+ChatGPT
+Your `edit_row` and `edit_data` routes look good. They handle redirecting to the edit page based on the provided row ID and then updating the data in the database upon form submission.
+
+In your `edit_text.html` template, make sure you have a form that allows users to edit the text and submit the changes. Here's how you can modify your `edit_text.html` template:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Text</title>
+</head>
+<body>
+    <h1>Edit Text</h1>
+    <form method="POST">
+        <input type="hidden" name="rowid" value="{{ rowid }}">
+        <label for="edited_text">Edited Text:</label><br>
+        <textarea id="edited_text" name="edited_text" rows="5" cols="50">{{ data }}</textarea><br>
+        <button type="submit">Save</button>
+    </form>
+</body>
+</html>
+```
+
+This form includes a hidden input field for the row ID and a textarea for editing the text. When submitted, it sends the edited text along with the row ID to your `edit_data` route for processing.
+
+Make sure the `edit_text.html` template is placed in the `templates` directory of your Flask application.
+
+With these adjustments, your edit functionality should work as expected. Let me know if you have any further questions!
+user
+That is working I had to add a decode the results were bytestring
+ChatGPT
+I'm glad to hear that it's working now! If you needed to decode the byte strings in your results, it sounds like you were dealing with text data encoded as bytes in your database.
+
+Decoding byte strings into text strings is a common step when working with data retrieved from databases or external sources. In Python, you can decode byte strings using the `decode()` method, specifying the appropriate encoding (e.g., 'utf-8').
+
+Here's an example of how you can decode byte strings in your Flask route:
+
+```python
+@app.route('/', methods=['GET', 'POST'])
+def query_form():
+    if request.method == 'POST':
+        # Get the user query from the form
+        query = request.form['query']
+        # Execute the query and fetch results
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        logit(query)
+
+        cursor.execute("SELECT rowid, words FROM ipynb WHERE words LIKE ? LIMIT 2", ('%' + query + '%',))
+
+        rows = cursor.fetchall()
+
+        # Decode byte strings into readable text and include row IDs
+        results = [{'rowid': row[0], 'text': row[1].decode('utf-8')} for row in rows]
+
+        conn.close()
+        logit(results)
+        return render_template('query_result.html', query=query, results=results)
+    return render_template('query_form.html')
+```
+
+In this example, I've used `.decode('utf-8')` to decode byte strings into text strings assuming they are encoded using UTF-8. Adjust the encoding according to your specific use case if necessary.
+
+If you have any more questions or need further assistance, feel free to ask!
+user
+how to delete by rowid 
+ChatGPT
+To delete a row from your database based on its row ID (`rowid`), you can create a route in your Flask application that handles the deletion process. Here's how you can implement it:
+
+```python
+@app.route('/delete/<int:rowid>', methods=['POST'])
+def delete_row(rowid):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM ipynb WHERE rowid = ?", (rowid,))
+    conn.commit()
+    conn.close()
+    return redirect('/')
+```
+
+In this route:
+
+- The route URL is `/delete/<int:rowid>`, where `<int:rowid>` is a dynamic part of the URL indicating the row ID of the row to be deleted.
+- The route accepts only POST requests to ensure that the deletion operation is triggered intentionally by submitting a form or making an AJAX request.
+- When a POST request is received, the `delete_row` function is executed.
+- Inside the function, a connection to the database is established, and a cursor is created.
+- The `cursor.execute()` method is used to execute an SQL DELETE statement, which deletes the row with the specified `rowid` from the `ipynb` table.
+- After executing the DELETE statement, the changes are committed to the database using `conn.commit()`.
+- Finally, the database connection is closed, and the user is redirected to the homepage (`'/'`) or any other appropriate page.
+
+To trigger the deletion, you can create a form or an AJAX request in your HTML template that submits a POST request to the `/delete/<rowid>` route.
+
+For example, in your HTML template:
+
+```html
+<form method="POST" action="/delete/{{ result.rowid }}">
+    <button type="submit">Delete</button>
+</form>
+```
+
+This form submits a POST request to the `/delete/<rowid>` route when the "Delete" button is clicked, where `<rowid>` is replaced with the actual row ID of the row to be deleted.
+
+Ensure that you have appropriate error handling and security measures in place when implementing deletion functionality in your application.
+user
+<form method="POST" action="/delete/{{ result.rowid }}">
+    <button type="submit">Delete</button>
+</form>
+Can I just have a delete by id button for my index page 
+ChatGPT
+Certainly! If you want to have a delete button for each row displayed on your index page, you can include a form with a delete button for each row. Here's how you can do it:
+
+```html
+{% for result in results %}
+    <div>
+        <p>Row ID: {{ result.rowid }}</p>
+        <pre>Text: {{ result.text }}</pre>
+        <form method="POST" action="/delete/{{ result.rowid }}">
+            <button type="submit">Delete</button>
+        </form>
+    </div>
+{% endfor %}
+```
+
+In this code:
+
+- We iterate over each `result` in the `results` list.
+- For each `result`, we display its row ID and text.
+- We include a form with a delete button inside each `<div>`. The form's `action` attribute is set to `/delete/<rowid>`, where `<rowid>` is replaced with the actual row ID of the current result.
+- When the delete button is clicked, the form submits a POST request to the `/delete/<rowid>` route, triggering the deletion of the corresponding row from the database.
+
+Make sure to handle the deletion logic in your Flask route as explained in the previous response. This way, users can delete rows directly from the index page by clicking the delete buttons next to each row.
+user
+So wher e does results come from ?
+ChatGPT
+The `results` variable typically comes from your Flask route where you render the template. In your Flask route, you query the database to fetch the data you want to display on your index page, and then you pass that data to the template using the `render_template` function.
+
+Here's an example of how you might do this in your Flask route:
+
+```python
+from flask import render_template
+
+@app.route('/', methods=['GET'])
+def index():
+    # Fetch data from the database (e.g., rows from the 'ipynb' table)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT rowid, words FROM ipynb")
+    rows = cursor.fetchall()
+    conn.close()
+
+    # Process the data if needed (e.g., decode byte strings)
+    results = [{'rowid': row[0], 'text': row[1].decode('utf-8')} for row in rows]
+
+    # Render the template with the data
+    return render_template('index.html', results=results)
+```
+
+In this example:
+
+- We define an `/` route (the index route) that handles GET requests.
+- Inside the route function, we fetch data from the database using an SQL query.
+- We process the fetched data as needed (e.g., decoding byte strings into text strings) and store it in the `results` variable.
+- Finally, we render the `index.html` template, passing the `results` variable to the template using the `render_template` function.
+
+In your `index.html` template, you can then iterate over the `results` variable to display each row's data, as shown in the previous response.
+
+Make sure to adjust the code according to your specific database schema and data retrieval logic.
+user
+@app.route('/', methods=['GET'])
+def index():
+    # Fetch data from the database (e.g., rows from the 'ipynb' table)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT rowid, words FROM ipynb")
+    rows = cursor.fetchall()
+    conn.close()
+    # Process the data if needed (e.g., decode byte strings)
+    results = [{'rowid': row[0], 'text': row[1].decode('utf-8')} for row in rows]
+
+    # Render the template with the data
+    return render_template('index.html', results=results)
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Query Result</title>
+
+    <style>
+        /* Optional CSS for styling the pre tag */
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+
+</head>
+
+
+
+<body>
+    <form method="POST" action="/delete/{{ result.rowid }}">
+        <button type="submit">Delete</button>
+    </form>
+    
+
+
+{% for result in results %}
+    <div>
+        <p>Row ID: {{ result.rowid }}</p>
+        <pre>Text: {{ result.text }}</pre>
+        <form method="POST" action="/delete/{{ result.rowid }}">
+            <button type="submit">Delete</button>
+        </form>
+    </div>
+{% endfor %}
+My data base has 44,000 entries I do not want to load it unlrdd O choodr s delrte command
+ChatGPT
+If you want to avoid loading all 44,000 entries from your database into your HTML page, you can implement pagination or lazy loading. This way, you can display only a portion of the data at a time, improving the performance of your application.
+
+Here's a basic example of how you can implement pagination in your Flask application:
+
+```python
+from flask import request
+
+@app.route('/', methods=['GET'])
+def index():
+    page = request.args.get('page', default=1, type=int)
+    per_page = 10  # Number of entries to display per page
+    offset = (page - 1) * per_page
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT rowid, words FROM ipynb LIMIT ? OFFSET ?", (per_page, offset))
+    rows = cursor.fetchall()
+    conn.close()
+
+    results = [{'rowid': row[0], 'text': row[1].decode('utf-8')} for row in rows]
+
+    return render_template('index.html', results=results)
+```
+
+In this example:
+
+- We added pagination to the `/` route by accepting a `page` parameter in the URL query string.
+- We calculate the `offset` based on the current page and the number of entries per page.
+- We modify the SQL query to include `LIMIT` and `OFFSET` clauses to retrieve only a subset of entries.
+- We pass the `results` to the template, which will contain only the entries for the current page.
+
+In your HTML template, you can then add pagination controls to navigate between pages.
+
+Alternatively, you can implement lazy loading using JavaScript to fetch more entries from the database as the user scrolls down the page. This approach can further improve performance by loading data dynamically.
+
+Choose the pagination method that best fits your application's requirements and user experience.
+user
+I don't want to load anything until I choose an action . This is my index I might just want to route to query_form()
+ChatGPT
+If you want to keep your index page lightweight and only load data when a specific action is chosen, you can simply provide links or buttons on the index page that lead to different routes in your Flask application.
+
+Here's how you can modify your index page to provide links or buttons for different actions:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Index Page</title>
+</head>
+
+<body>
+    <h1>Welcome to the Index Page</h1>
+    <ul>
+        <li><a href="/query">Query Form</a></li>
+        <!-- Add more links/buttons for other actions as needed -->
+    </ul>
+</body>
+
+</html>
+```
+
+In this example:
+
+- We provide a simple HTML page with a heading (`<h1>`) indicating that it is the index page.
+- We create a list (`<ul>`) containing links (`<a>`) to different routes in your Flask application.
+- Each link points to a specific route, such as `/query` for the query form.
+
+In your Flask application, you would define routes to handle these actions:
+
+```python
+@app.route('/', methods=['GET'])
+def index():
+    return render_template('index.html')
+
+@app.route('/query', methods=['GET', 'POST'])
+def query_form():
+    # Implement the query form route logic here
+    pass
+
+# Define other routes for different actions as needed
+```
+
+This way, when a user visits the index page, they are presented with options to choose from, and data will only be loaded when they navigate to a specific route or perform a certain action. This approach keeps the index page lightweight and responsive.
+user
+@app.route('/edit/<int:rowid>', methods=['GET', 'POST'])
+def edit_data(rowid):
+    if request.method == 'POST':
+        # Get the edited data from the form
+        edited_text = request.form['edited_text']
+        # Update the database with the edited data
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE ipynb SET words = ? WHERE rowid = ?", (edited_text, rowid))
+        conn.commit()
+        conn.close()
+        return redirect('/')
+    else:
+        # Fetch the data to edit based on rowid
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT words FROM ipynb WHERE rowid = ?", (rowid,))
+        data = cursor.fetchone()
+        conn.close()
+        return render_template('edit_text.html', rowid=rowid, data=data['words'])
+doesnt the save have to be a dytess object ?
+ChatGPT
+Yes, in Flask, the data sent from the form is typically received as strings. If you need to save data to your database, especially if it's textual data like in your case, you usually don't need to worry about converting it to bytes unless your database specifically requires it.
+
+However, if your database expects binary data or if you have specific requirements for how the data should be stored, you may need to convert it accordingly. In most cases with textual data, you would receive it as a string, and you can directly use that string to update your database.
+
+In your case, if `edited_text` is the text data you want to save to your database, and if the `words` column in your `ipynb` table is a text or varchar type, you can directly use the `edited_text` string to update the database as you are already doing in your code:
+
+```python
+cursor.execute("UPDATE ipynb SET words = ? WHERE rowid = ?", (edited_text, rowid))
+```
+
+This assumes that `edited_text` contains the text you want to save, and `rowid` is the row ID of the record you want to update.
+
+If your database expects a different type of data or if you have specific encoding requirements, you might need to perform additional conversions, but for most cases involving textual data, working with strings directly is sufficient.
+user
+@app.route('/', methods=['GET'])
+def index():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT rowid, words FROM ipynb where rowid = ?", (3,))
+    rows = cursor.fetchall()
+    #results = [{'rowid': row[0], 'text': row[1].decode('utf-8')} for row in rows]
+    results = [{'rowid': row[0], 'text': row[1]} for row in rows]
+    conn.close()
+    logit(rows)
+    return render_template('index.html',results = results , rowid = 3)
+The response is :
+Text: b'flask==2.1.1\nmatplotlib\nnumpy==1.22.3
+ChatGPT
+It appears that the data you're fetching from the database is in byte-string format (`b'...'`). This means that the data is stored as bytes rather than as a regular string. If you're seeing `b'flask==2.1.1\nmatplotlib\nnumpy==1.22.3'`, it suggests that the data in the `words` column of your `ipynb` table is stored as a byte-string.
+
+In your `index` route, you can decode these byte-strings into regular strings before passing them to the template. You can do this by calling the `decode()` method on each byte-string. Here's how you can modify your route to decode the byte-strings:
+
+```python
+@app.route('/', methods=['GET'])
+def index():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT rowid, words FROM ipynb WHERE rowid = ?", (3,))
+    rows = cursor.fetchall()
+    results = [{'rowid': row[0], 'text': row[1].decode('utf-8')} for row in rows]
+    conn.close()
+    logit(results)
+    return render_template('index.html', results=results, rowid=3)
+```
+
+By calling `decode('utf-8')` on each byte-string in the loop, you'll convert them into regular strings. This should ensure that the data displayed in your HTML template is in a readable format.
+

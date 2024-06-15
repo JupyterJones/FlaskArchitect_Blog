@@ -1,0 +1,1118 @@
+Load index.html in Flask
+user
+# /resize/resize.py
+from flask import Flask, render_template, request, send_file, Blueprint
+from PIL import Image
+import os
+import shutil
+import datetime
+import logging
+from icecream import ic
+from logging.handlers import RotatingFileHandler
+
+# Configure this files logger Configure logging
+current_dir = os.getcwd()+'/resize/resize.log'
+ic ("Current working directory: {0}".format(current_dir))
+# Create a file handler to write log messages to a single file with rotation
+file_handler = RotatingFileHandler(current_dir, maxBytes=10000, backupCount=1)
+file_handler.setLevel(logging.DEBUG)
+
+# Create a logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Set the formatter for log messages
+#formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s [in %(pathname)s:%(lineno)d]')
+
+file_handler.setFormatter(formatter)
+
+# Add the file handler to the logger
+logger.addHandler(file_handler)
+
+# Initialize the Flask app
+# Create a Flask app
+resize_bp = Blueprint("resize", __name__, template_folder="templates", static_folder="static", static_url_path="assets", url_prefix="/resize")
+#
+# Define a route for the index page
+@resize_bp.route('/')
+def index():
+    return render_template('/index.html')
+
+# Define a route for image resizing
+@resize_bp.route('/resize_image', methods=['POST'])
+def resize_image():
+    try:
+        os.makedirs('static/images/resized', exist_ok=True)
+        # Access the uploaded image
+        uploaded_image = request.files['image']
+        
+        # Check if no file is selected
+        if uploaded_image.filename == '':
+            return "No file selected. Please choose an image."
+        
+        # Open the image using Pillow
+        image = Image.open(uploaded_image)
+        
+        # Get the desired width and height from the form submission
+        desired_width = int(request.form['desired_width'])
+        desired_height = int(request.form['desired_height'])
+        
+        # Resize the image to the desired dimensions
+        resized_image = image.resize((desired_width, desired_height))
+        
+        # Define the path to save the resized image
+        save_path = 'static/images/resized/resized_image.jpg'
+        
+        # Save the resized image
+        resized_image.save(save_path)
+        filename = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")+"_"+str(desired_width)+"X"+str(desired_height)+".jpg"
+        shutil.copy(save_path, "static/images/resized/"+filename)   
+        # Return the resized image as a response
+        return render_template('resize_image.html', image=save_path)
+    except Exception as e:
+        # Log any errors
+
+        return "An error occurred while resizing the image."
+
+
+ How do I load:
+ resize/templates/index.html ?
+ChatGPT
+To load the `resize/templates/index.html` template in your Flask application, you need to ensure that the template file is located in the correct directory and that you use the `render_template` function to render it within your route. Here are the steps to load `index.html`:
+
+1. Make sure the `index.html` file is located in the `templates` directory, which should be in the same directory as your Python script (`resize.py`). Your project structure should look like this:
+
+```
+/resize
+    /templates
+        index.html
+    resize.py
+    resize.log (your log file)
+```
+
+2. In your `resize.py` script, you've already defined a route for the index page using the `@resize_bp.route('/')` decorator. To render the `index.html` template when a user accesses this route, you need to modify the `index()` function to use the `render_template` function. Here's how you can do it:
+
+```python
+# Import the render_template function
+from flask import render_template
+
+# ...
+
+# Define a route for the index page
+@resize_bp.route('/')
+def index():
+    # Use render_template to render the 'index.html' template
+    return render_template('index.html')
+```
+
+3. With this modification, when a user accesses the root URL (e.g., http://yourdomain.com/resize/), Flask will render the `index.html` template and return it as a response.
+
+Make sure the file path to your `index.html` template is correct relative to your project's root directory, and Flask should be able to load and render it when you visit the appropriate URL.
+user
+resize_bp = Blueprint("resize", __name__, template_folder="templates", static_folder="static", static_url_path="assets", url_prefix="/resize")
+#
+# Define a route for the index page
+@resize_bp.route('/')
+def index():
+    return render_template('index.html')
+ChatGPT
+It looks like you've defined the `resize_bp` Blueprint and the `index()` route correctly in your code. This setup specifies that the `index.html` template should be rendered when a user accesses the root URL for this Blueprint (`/resize/`).
+
+Here's a breakdown of your code:
+
+1. You created a Blueprint named `resize_bp` with the specified settings:
+   - `template_folder="templates"`: This tells Flask to look for templates in the `templates` directory within the Blueprint's folder.
+   - `static_folder="static"`: This tells Flask to serve static files (like CSS or JavaScript) from the `static` directory within the Blueprint's folder.
+   - `static_url_path="assets"`: This sets the URL prefix for serving static files from the `static` folder. Static files will be available at URLs like `/resize/assets/file.css`.
+   - `url_prefix="/resize"`: This sets the URL prefix for all routes defined within this Blueprint to start with `/resize`.
+
+2. You defined a route for the index page using the `@resize_bp.route('/')` decorator. When a user accesses the root URL of the Blueprint (`/resize/`), the `index()` function is executed, and it renders the `index.html` template using `render_template('index.html')`.
+
+This code should work as expected, rendering the `index.html` template when you visit the `/resize/` URL. Make sure that your `index.html` file is in the correct location within the `templates` directory, and you should be able to access it successfully.
+user
+This loads my main apps index  not my resize index
+ChatGPT
+I apologize for the confusion. If the route defined in your `resize_bp` Blueprint is loading the index of your main app instead of the `resize` Blueprint's index, you may need to make sure that you are using the Blueprint correctly and that there are no conflicts with route names.
+
+Here are some steps to troubleshoot this issue:
+
+1. Double-check your project structure to ensure that the `resize` Blueprint is registered correctly in your main application. It should look something like this:
+
+```python
+from flask import Flask
+from resize import resize_bp  # Import the resize Blueprint
+
+app = Flask(__name__)
+
+# Register the resize Blueprint with your Flask app
+app.register_blueprint(resize_bp)
+
+if __name__ == '__main__':
+    app.run()
+```
+
+2. Verify that there are no conflicting route names between your main app and the `resize` Blueprint. Make sure that the route for the main app's index and the `resize` Blueprint's index have different URLs.
+
+For example, if your main app has an index route like this:
+
+```python
+@app.route('/')
+def main_index():
+    return render_template('main_index.html')
+```
+
+Make sure it doesn't conflict with the `resize` Blueprint's index route (`@resize_bp.route('/')`).
+
+3. Ensure that you are accessing the correct URL in your browser. If you want to access the `resize` Blueprint's index, make sure you're using the URL that corresponds to the Blueprint's URL prefix, such as `/resize/`.
+
+If you've checked these points and are still facing issues, please provide more details about your project structure and the relevant parts of your code, and I'll do my best to assist you further.
+user
+does my main app have to import Blueprint ?
+ChatGPT
+No, your main app does not need to import `Blueprint` explicitly. The `Blueprint` class is typically imported and used within the specific Blueprint you define in your application. Here's the typical structure:
+
+1. **Main Application** (`app.py` or similar):
+
+   ```python
+   from flask import Flask
+   from resize import resize_bp  # Import the Blueprint you've defined in the 'resize' module
+
+   app = Flask(__name__)
+
+   # Register the Blueprint with your Flask app
+   app.register_blueprint(resize_bp)
+
+   if __name__ == '__main__':
+       app.run()
+   ```
+
+2. **Resize Blueprint** (`resize.py` or similar):
+
+   ```python
+   from flask import Blueprint, render_template
+
+   resize_bp = Blueprint("resize", __name__, template_folder="templates", static_folder="static", static_url_path="assets", url_prefix="/resize")
+
+   @resize_bp.route('/')
+   def index():
+       return render_template('index.html')
+   ```
+
+In this structure:
+
+- Your main application (`app.py`) imports the `resize_bp` Blueprint and registers it using `app.register_blueprint(resize_bp)`.
+- The `resize.py` file defines the `resize_bp` Blueprint, which includes its own routes and configuration.
+
+By structuring your code in this way, you keep the separation of concerns between your main application and individual Blueprints, making it easier to manage and organize your routes. Your main app doesn't need to explicitly import `Blueprint` because it's used within the `resize.py` file where the Blueprint is defined.
+user
+resize_template_folder = 'resize/templates'
+app.register_blueprint(resize_bp, url_prefix='/resize', template_folder=resize_template_folder)
+ChatGPT
+The code you provided attempts to register the `resize_bp` Blueprint with a specified `template_folder` and `url_prefix`. However, there is a small issue in your code. When you register a Blueprint, you should provide the `template_folder` as an argument when creating the Blueprint, not when registering it. Here's how you can fix it:
+
+```python
+from flask import Flask
+from resize import resize_bp  # Import the Blueprint you've defined in the 'resize' module
+
+app = Flask(__name__)
+
+# Set the template folder for the resize Blueprint
+resize_template_folder = 'resize/templates'
+
+# Register the Blueprint with your Flask app, providing the template_folder during Blueprint creation
+app.register_blueprint(resize_bp, url_prefix='/resize', template_folder=resize_template_folder)
+
+if __name__ == '__main__':
+    app.run()
+```
+
+In this corrected code:
+
+1. We first set the `resize_template_folder` variable to the path of the template folder for the `resize_bp` Blueprint.
+
+2. Then, during the registration of the Blueprint using `app.register_blueprint()`, we provide the `template_folder` argument to specify the template folder for the `resize_bp` Blueprint. This is the correct way to set the template folder for a specific Blueprint.
+
+With this setup, the `resize_bp` Blueprint will use the specified template folder when rendering templates, and it will be accessible at the `/resize` URL prefix.
+user
+I only want to log info
+ChatGPT
+If you want to configure your Flask application to log only `INFO` level messages and filter out messages with a lower severity level, you can adjust the logging level for your application's logger. In your code, you've already configured logging for the application. To log only `INFO` messages, you can modify the level of the logger as follows:
+
+```python
+logger.setLevel(logging.INFO)  # Set the logger level to INFO
+```
+
+Here's the updated part of your code with the modification:
+
+```python
+# Create a logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)  # Set the logger level to INFO
+
+# Set the formatter for log messages
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s [in %(pathname)s:%(lineno)d]')
+
+file_handler.setFormatter(formatter)
+
+# Add the file handler to the logger
+logger.addHandler(file_handler)
+```
+
+With this change, your logger will only record `INFO` level messages or higher (e.g., `INFO`, `WARNING`, `ERROR`, etc.), and messages with lower severity levels, like `DEBUG`, will be filtered out.
+
+Remember to set the desired logging level for your logger according to your specific requirements. If you want to log more detailed information during development, you can set the level to `DEBUG`. For production or when you only need higher-level information, `INFO` is a common choice.
+user
+When I start the app I get:
+DEBUG:watchdog.observers.inotify_buffer:in-event <InotifyEvent: src_path=b'/home/jack/Desktop/LearnFlask_step-by-step/resize/templates', wd=6, mask=IN_ISDIR|IN_OPEN, cookie=0, name='templates'>
+DEBUG:watchdog.observers.inotify_buffer:in-event <InotifyEvent: src_path=b'/home/jack/Desktop/LearnFlask_step-by-step/resize/templates', wd=940, mask=IN_ISDIR|IN_OPEN, cookie=0, name=''>
+DEBUG:watchdog.observers.inotify_buffer:in-event <InotifyEvent: src_path=b'/home/jack/Desktop/LearnFlask_step-by-step/resize/static', wd=6, mask=IN_ISDIR|IN_OPEN, cookie=0, name='static'>
+DEBUG:watchdog.observers.inotify_buffer:in-event <InotifyEvent: src_path=b'/home/jack/Desktop/LearnFlask_step-by-step/resize/static', wd=941, mask=IN_ISDIR|IN_OPEN, cookie=0, name=''>
+DEBUG:watchdog.observers.inotify_buffer:in-event <InotifyEvent: src_path=b'/home/jack/Desktop/LearnFlask_step-by-step/resize/static/images', wd=941, mask=IN_ISDIR|IN_OPEN, cookie=0, name='images'>
+DEBUG:watchdog.observers.inotify_buffer:in-event <InotifyEvent: src_path=b'/home/jack/Desktop/LearnFlask_step-by-step/resize/static/images', wd=943, mask=IN_ISDIR|IN_OPEN, cookie=0, name=''>
+DEBUG:watchdog.observers.inotify_buffer:in-event <InotifyEvent: src_path=b'/home/jack/Desktop/LearnFlask_step-by-step/resize/static/images/resized', wd=943, mask=IN_ISDIR|IN_OPEN, cookie=0, name='resized'>
+DEBUG:watchdog.observers.inotify_buffer:in-event <InotifyEvent: src_path=b'/home/jack/Desktop/LearnFlask_step-by-step/resize/static/images/resized', wd=944, mask=IN_ISDIR|IN_OPEN, cookie=0, name=''>
+DEBUG:watchdog.observers.inotify_buffer:in-event <InotifyEvent: src_path=b'/home/jack/Desktop/LearnFlask_step-by-step/resize/__pycache__', wd=6, mask=IN_ISDIR|IN_OPEN, cookie=0, name='__pycache__'>
+DEBUG:watchdog.observers.inotify_buffer:in-event <InotifyEvent: src_path=b'/home/jack/Desktop/LearnFlask_step-by-step/resize/__pycache__', wd=942, mask=IN_ISDIR|IN_OPEN, cookie=0, name=''>
+DEBUG:watchdog.observers.inotify_buffer:in-event <InotifyEvent: src_path=b'/home/jack/Desktop/LearnFlask_step-by-step/Logs', wd=1, mask=IN_ISDIR|IN_OPEN, cookie=0, name='Logs'>
+DEBUG:watchdog.observers.inotify_buffer:in-event <InotifyEvent: src_path=b'/home/jack/Desktop/LearnFlask_step-by-step/Logs', wd=7, mask=IN_ISDIR|IN_OPEN, cookie=0, name=''>
+Why am I getting all this junk ?
+ChatGPT
+The logs you're seeing appear to be generated by the `watchdog` library, which is often used for monitoring file system events like changes to files and directories. It's possible that the `watchdog` library is being used somewhere in your Flask application, possibly in a development server or auto-reloading feature.
+
+To address this issue and stop the logging of these `watchdog` events, you can set the log level for the `watchdog` library to a higher level (e.g., WARNING or ERROR) so that it doesn't produce log entries for events at the DEBUG level. You can add the following lines of code to your Flask application before initializing any `watchdog` components:
+
+```python
+import logging
+
+# Set the log level for the watchdog library to WARNING
+logging.getLogger('watchdog').setLevel(logging.WARNING)
+```
+
+Here's how you can incorporate this change into your code:
+
+```python
+from flask import Flask
+from resize import resize_bp  # Import the Blueprint you've defined in the 'resize' module
+import logging  # Import the logging module
+
+# Set the log level for the watchdog library to WARNING
+logging.getLogger('watchdog').setLevel(logging.WARNING)
+
+app = Flask(__name__)
+
+# Set the template folder for the resize Blueprint
+resize_template_folder = 'resize/templates'
+
+# Register the Blueprint with your Flask app, providing the template_folder during Blueprint creation
+app.register_blueprint(resize_bp, url_prefix='/resize', template_folder=resize_template_folder)
+
+if __name__ == '__main__':
+    app.run()
+```
+
+By setting the log level for the `watchdog` library to WARNING, it should suppress the DEBUG-level log entries related to file system events, which appear to be the "junk" you mentioned. This will make your application's logs cleaner and only display logs of interest to you.
+user
+#!/home/jack/Desktop/FlaskAppArchitect_Flask_App_Creator/env/bin/python
+import os
+import glob
+import shutil
+import tempfile
+import subprocess
+import datetime
+from PIL import Image
+from flask import Flask, request, render_template, redirect, url_for, send_from_directory, Response, send_file
+from moviepy.editor import VideoFileClip, ImageClip, CompositeVideoClip
+from moviepy.editor import concatenate_videoclips, AudioFileClip
+from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
+import logging
+from time import sleep
+from random import randint
+from PIL import Image, ImageDraw, ImageFont 
+import random
+import time
+import uuid
+import io
+import numpy as np
+import logging
+from logging.handlers import RotatingFileHandler
+#from zoomin import zoomin_bp
+from resize.resize import resize_bp
+app = Flask(__name__)
+app.use_static_path = True
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+# Set the log level for the watchdog library to WARNING
+logging.getLogger('watchdog').setLevel(logging.WARNING)
+
+
+# Set the template folder for the resize Blueprint
+resize_template_folder = 'resize/templates'
+# Create a formatter for the log messages
+formatter = logging.Formatter(
+    '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]')
+
+# Create a file handler to write log messages to a file
+file_handler = RotatingFileHandler(
+    'Logs/app.log', maxBytes=10000, backupCount=1)
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(formatter)
+
+# Add the file handler to the logger
+logger.addHandler(file_handler)
+logger.info("Logger created")
+logger.debug("Test debug message")
+
+# Create a stderr handler to write log messages to sys.stderr
+console_handler = logging.StreamHandler()
+#app.register_blueprint(zoomin_bp)
+# Set the template folder for the resize Blueprint
+resize_template_folder = 'resize/templates'
+
+# Register the Blueprint with your Flask app, providing the template_folder during Blueprint creation
+app.register_blueprint(resize_bp, url_prefix='/resize', template_folder=resize_template_folder)
+ChatGPT
+I see that you've made several updates to your Flask application, including the addition of a Blueprint named `resize_bp` for the `/resize` route and some logging configuration. This Blueprint will handle routes related to image resizing based on the previous discussions.
+
+Here are some key points and improvements in your code:
+
+1. **Logger Configuration**: You have set up proper logging for your application, including both file-based and console-based logging. This will help you debug and monitor your application effectively.
+
+2. **Blueprint Integration**: The `resize_bp` Blueprint has been integrated into your Flask application. It's registered with the URL prefix `/resize`, and the template folder has been correctly specified.
+
+3. **Library Imports**: You've imported the required libraries for your application, including Flask, Pillow (PIL), MoviePy, and others.
+
+4. **File System Events**: You've addressed the issue of excessive log messages related to file system events by setting the log level for the `watchdog` library to `WARNING`. This should reduce unnecessary log noise.
+
+Overall, your code looks good for its intended purpose of handling image resizing in a Flask application. If you have any specific questions or need further assistance with any part of your application, please feel free to ask.
+user
+have I got any redundant logging info ? 
+ChatGPT
+In your provided code, I can see multiple instances of logging configuration and the initialization of loggers. While they are not necessarily redundant, there are some aspects that you might want to review to improve the clarity and organization of your logging setup.
+
+1. **Logger Configuration Order**: You've configured the logger in the following order:
+   - Basic logging configuration (`logging.basicConfig`) with a global level of `DEBUG`.
+   - Logger for your application (`logger = logging.getLogger(__name__)`) with a level of `DEBUG`.
+   - Setting the log level for the `watchdog` library to `WARNING`.
+   - Creation of file and console handlers with their respective log levels.
+
+   The issue here is that the basic logging configuration (`logging.basicConfig`) sets a global level for all loggers, and this can affect the log levels of your custom loggers. It's better to configure your custom logger before calling `logging.basicConfig`. This ensures that the logger's settings are applied correctly.
+
+   Here's a modified order for better organization:
+
+   ```python
+   # Configure your custom logger before basic logging configuration
+   logger = logging.getLogger(__name__)
+   logger.setLevel(logging.DEBUG)
+
+   # Set the log level for the watchdog library to WARNING
+   logging.getLogger('watchdog').setLevel(logging.WARNING)
+
+   # Create a formatter for the log messages
+   formatter = logging.Formatter(
+       '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]')
+
+   # Create a file handler to write log messages to a file
+   file_handler = RotatingFileHandler(
+       'Logs/app.log', maxBytes=10000, backupCount=1)
+   file_handler.setLevel(logging.DEBUG)
+   file_handler.setFormatter(formatter)
+
+   # Add the file handler to the logger
+   logger.addHandler(file_handler)
+
+   # Create a stderr handler to write log messages to sys.stderr
+   console_handler = logging.StreamHandler()
+   ```
+
+2. **Logger Configuration Redundancy**: In your code, you have multiple instances of `logger.setLevel(logging.DEBUG)` for the same logger. It's sufficient to set the log level once for the logger instance, and you don't need to repeat it. Ensure that you set the log level where it makes the most sense in your application's structure.
+
+3. **Console Logging**: You've created a console handler (`console_handler`) but haven't added it to any logger. If you intend to log messages to the console, add this handler to the appropriate logger(s).
+
+4. **Logging Messages**: It's important to use logging messages effectively. You've used `logger.info("Logger created")` and `logger.debug("Test debug message")`. While these messages are fine for testing, in production code, it's recommended to use logging for informative messages that provide context about the application's behavior, issues, or events.
+
+In summary, while your logging setup is functional, consider organizing it as suggested above and use logging messages that provide meaningful information about your application's behavior and events.
+user
+DEBUG:watchdog.observers.inotify_buffer:in-event <InotifyEvent: src_path=b'/home/jack/Desktop/LearnFlask_step-by-step/resize/static/images/resized', wd=943, mask=IN_ISDIR|IN_OPEN, cookie=0, name='resized'>
+DEBUG:watchdog.observers.inotify_buffer:in-event <InotifyEvent: src_path=b'/home/jack/Desktop/LearnFlask_step-by-step/resize/static/images/resized', wd=944, mask=IN_ISDIR|IN_OPEN, cookie=0, name=''>
+DEBUG:watchdog.observers.inotify_buffer:in-event <InotifyEvent: src_path=b'/home/jack/Desktop/LearnFlask_step-by-step/resize/__pycache__', wd=6, mask=IN_ISDIR|IN_OPEN, cookie=0, name='__pycache__'>
+DEBUG:watchdog.observers.inotify_buffer:in-event <InotifyEvent: src_path=b'/home/jack/Desktop/LearnFlask_step-by-step/resize/__pycache__', wd=942, mask=IN_ISDIR|IN_OPEN, cookie=0, name=''>
+DEBUG:watchdog.observers.inotify_buffer:in-event <InotifyEvent: src_path=b'/home/jack/Desktop/LearnFlask_step-by-step/Logs', wd=1, mask=IN_ISDIR|IN_OPEN, cookie=0, name='Logs'>
+DEBUG:watchdog.observers.inotify_buffer:in-event <InotifyEvent: src_path=b'/home/jack/Desktop/LearnFlask_step-by-step/Logs', wd=7, mask=IN_ISDIR|IN_OPEN, cookie=0, name=''>
+Now I have this again ??
+ChatGPT
+If you're still seeing these `watchdog` log messages even after setting the log level for the `watchdog` library to `WARNING`, there could be another library or component in your application that's using `watchdog` and producing these log entries.
+
+Here's what you can do to investigate and address this issue:
+
+1. **Search for `watchdog` Usage**: Examine your entire project for any usage of the `watchdog` library. This includes not only your main application code but also any third-party libraries or modules you might be using. Search for `watchdog` imports and usage.
+
+2. **Check Dependencies**: Review the dependencies listed in your project's `requirements.txt` or wherever you define your dependencies. Check if any of them use `watchdog`. If you find any, refer to their documentation or source code to see if there's a way to adjust the logging level.
+
+3. **Update Third-party Libraries**: Ensure that all third-party libraries you use are up-to-date. Sometimes, library updates may include fixes for log verbosity issues.
+
+4. **Verify Code**: Review your application's code and make sure you're not using `watchdog` directly or indirectly in a way that generates these logs.
+
+5. **Use a Logging Filter**: If you're unable to identify the source of these logs and you're certain that they are not generated by your code, consider using a logging filter to suppress logs from the `watchdog` library. You can create a custom filter that checks the log record's source and level and filter out the unwanted logs.
+
+Here's an example of how you can create a custom logging filter to suppress logs:
+
+```python
+import logging
+
+class WatchdogFilter(logging.Filter):
+    def filter(self, record):
+        # Filter out logs from the 'watchdog' library with level less than WARNING
+        return not (record.name.startswith('watchdog.') and record.levelno < logging.WARNING)
+
+# Add the filter to your logger
+logger.addFilter(WatchdogFilter())
+```
+
+Adding this filter to your logger should prevent logs from the `watchdog` library with levels below `WARNING` from being displayed.
+
+By taking these steps, you should be able to identify and address the source of these `watchdog` log entries in your application.
+user
+http://localhost:5100/resize_image   Not found
+# ---------resize_image.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Resizer</title>
+</head>
+<body>
+    <h1>Image Resizer</h1>
+    <a href="{{ url_for('resize_index') }}">Back to Home</a>
+
+    {% if image %}
+    <a href="{{ url_for('resize_index') }}">
+        <img src="{{ image }}" alt="Resized Image">
+    </a>
+{% endif %}
+
+</body>
+</html>
+ChatGPT
+It appears that you're encountering a "Not Found" error when trying to access the `/resize_image` route in your Flask application. This issue might be related to route registration or URL configuration.
+
+Here are some steps to troubleshoot and resolve the issue:
+
+1. **Check Route Registration**: Verify that you've defined the `/resize_image` route in your `resize_bp` Blueprint and registered it correctly. Make sure that the route function is within the `resize.py` file (or the file where you've defined the Blueprint).
+
+   In your `resize.py` file, you should have something like this:
+
+   ```python
+   @resize_bp.route('/resize_image', methods=['POST'])
+   def resize_image():
+       # Your code for resizing the image
+   ```
+
+2. **Blueprint Prefix**: Since you're using the `resize_bp` Blueprint with a URL prefix of `/resize`, the complete URL for the `/resize_image` route should be `http://localhost:5100/resize/resize_image`. Make sure you are accessing the correct URL.
+
+3. **URL Pattern in HTML**: In your `resize_image.html` template, ensure that the URL is generated correctly using the `url_for` function, taking into account the Blueprint's name and route function name.
+
+   In your HTML template, you should have something like this:
+
+   ```html
+   <a href="{{ url_for('resize.resize_image') }}">Back to Home</a>
+   ```
+
+4. **Flask Run**: Make sure you are running your Flask application using `app.run()` in your main application file (`app.py` or similar). Ensure that you're not running an outdated or incorrect version of your application.
+
+5. **Check for Typos**: Double-check for any typos or case sensitivity issues in your route names, Blueprint names, and template file names. They should match exactly.
+
+6. **Route Decorator**: Ensure that the route decorator in your `resize.py` file matches the URL pattern you are trying to access. In this case, it should be `@resize_bp.route('/resize_image', methods=['POST'])`.
+
+7. **Error Handling**: Consider adding error handling to your Flask routes to capture and log any errors that occur during route execution. This can help you identify issues if they occur within your route logic.
+
+After checking these points, if you're still encountering the "Not Found" error, please provide more specific details about your code and project structure so that I can assist you further.
+user
+# ---------resize_image.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Resizer</title>
+</head>
+<body>
+    <h1>Image Resizer</h1>
+    <a href="{{ url_for('resize_index') }}">Back to Home</a>
+
+    {% if image %}
+    <a href="{{ url_for('resize_index') }}">
+        <img src="{{ image }}" alt="Resized Image">
+    </a>
+{% endif %}
+
+</body>
+</html>
+http://localhost:5100/resize_image   Not Found
+The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+ChatGPT
+The "Not Found" error you're encountering when accessing `http://localhost:5100/resize_image` suggests that Flask is unable to find the route associated with that URL. To resolve this issue, let's double-check your route configuration and ensure that everything is set up correctly.
+
+Here are some steps to troubleshoot and fix the problem:
+
+1. **Blueprint Prefix**: Since you're using the `resize_bp` Blueprint with a URL prefix of `/resize`, the complete URL for the `/resize_image` route should be `http://localhost:5100/resize/resize_image`. Please make sure you are accessing the correct URL.
+
+2. **Blueprint Route Name**: Check that the route name in your HTML template matches the route name defined in your `resize.py` file. In your template, you have:
+
+   ```html
+   <a href="{{ url_for('resize_index') }}">Back to Home</a>
+   ```
+
+   However, if the route name in your `resize.py` file is `resize_image`, you should update the template like this:
+
+   ```html
+   <a href="{{ url_for('resize.resize_image') }}">Back to Home</a>
+   ```
+
+   Ensure that the route names match exactly, including the Blueprint prefix (`resize.`).
+
+3. **Route Function Name**: Verify that the route function in your `resize.py` file has the correct decorator and function name. It should look something like this:
+
+   ```python
+   @resize_bp.route('/resize_image', methods=['POST'])
+   def resize_image():
+       # Your code for resizing the image
+   ```
+
+   The function name `resize_image` should match the one used in the route definition.
+
+4. **Blueprint Registration**: Ensure that you've registered the `resize_bp` Blueprint in your main application file (`app.py` or similar) and that you've used the correct Blueprint variable (`resize_bp`) when registering it.
+
+   Here's an example of how to register the Blueprint:
+
+   ```python
+   from flask import Flask
+   from resize import resize_bp  # Import the Blueprint
+
+   app = Flask(__name__)
+
+   # Register the Blueprint with the correct URL prefix
+   app.register_blueprint(resize_bp, url_prefix='/resize')
+
+   if __name__ == '__main__':
+       app.run()
+   ```
+
+5. **Server Restart**: Sometimes, changes to the routing structure or Blueprint registration may require a server restart to take effect. If you've made any changes, try restarting your Flask development server.
+
+6. **Check for Typos**: Double-check for any typos, including in the URL, Blueprint names, and route names. They should match exactly.
+
+After checking these points and making any necessary adjustments, try accessing `http://localhost:5100/resize/resize_image` again. If you still encounter issues, please provide more details about your code and project structure for further assistance.
+user
+resize_template_folder = 'resize/templates'
+
+# Register the Blueprint with your Flask app, providing the template_folder during Blueprint creation
+app.register_blueprint(resize_bp, url_prefix='/resize', template_folder=resize_template_folder)
+ChatGPT
+It seems you've correctly set the `template_folder` for your `resize_bp` Blueprint when registering it with your Flask app. This is an important step to ensure that Flask knows where to look for templates specific to this Blueprint.
+
+Here's the relevant code snippet you provided:
+
+```python
+resize_template_folder = 'resize/templates'
+
+# Register the Blueprint with your Flask app, providing the template_folder during Blueprint creation
+app.register_blueprint(resize_bp, url_prefix='/resize', template_folder=resize_template_folder)
+```
+
+With this configuration, Flask will look for templates related to the `resize_bp` Blueprint in the specified folder, which is `'resize/templates'`.
+
+If you have specific template files for routes within the `resize_bp` Blueprint (such as the `resize_image.html` template you mentioned earlier), make sure they are located within the `resize/templates` folder, and you use the correct template names when rendering them using `render_template()` in your routes.
+
+If you encounter any issues related to template rendering or accessing routes within the `resize_bp` Blueprint, please provide more details, and I'll be happy to assist further.
+user
+# -----resize/resize_index.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Resizer</title>
+</head>
+<body>
+    <h1>Image Resizer</h1>
+    <form action="/resize.resize_image" method="POST" enctype="multipart/form-data">
+        <input type="file" name="image" accept="image/*" required><br><br>
+
+            <label for="desired_width">Desired Width:</label>
+            <input type="number" name="desired_width" id="desired_width">
+            <br>
+            <label for="desired_height">Desired Height:</label>
+            <input type="number" name="desired_height" id="desired_height">
+            <br>
+            <input type="submit" value="Resize Image">
+    </form>
+    {% if image %}
+        <img src="{{ image }}" alt="Resized Image">
+    {% endif %}
+</body>
+</html>
+# ---------resize/resize_image.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Resizer</title>
+</head>
+<body>
+    
+
+    <h1>Image Resizer</h1>
+    <a href="{{ url_for('resize.resize_image') }}">Back to Home</a>
+
+    {% if image %}
+    <a href="{{ url_for('resize.resize_index') }}">
+        <img src="{{ image }}" alt="Resized Image">
+    </a>
+{% endif %}
+
+</body>
+</html>
+# /resize/resize.py
+from flask import Flask, render_template, request, send_file, Blueprint
+from PIL import Image
+import os
+import shutil
+import datetime
+import logging
+from icecream import ic
+from logging.handlers import RotatingFileHandler
+
+# Configure this files logger Configure logging
+current_dir = os.getcwd()+'/resize/resize.log'
+ic ("Current working directory: {0}".format(current_dir))
+# Create a file handler to write log messages to a single file with rotation
+file_handler = RotatingFileHandler(current_dir, maxBytes=10000, backupCount=1)
+file_handler.setLevel(logging.DEBUG)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO) 
+
+
+# Set the formatter for log messages
+#formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s [in %(pathname)s:%(lineno)d]')
+
+file_handler.setFormatter(formatter)
+
+# Add the file handler to the logger
+logger.addHandler(file_handler)
+
+# Initialize the Flask app
+# Create a Flask app
+resize_bp = Blueprint("resize", __name__, template_folder="templates", static_folder="static", static_url_path="assets", url_prefix="/resize")
+#
+# Define a route for the index page
+@resize_bp.route('/')
+def resize_index():
+    return render_template('resize_index.html')
+
+# Define a route for image resizing
+@resize_bp.route('/resize_image', methods=['POST'])
+def resize_image():
+    try:
+        os.makedirs('static/images/resized', exist_ok=True)
+        # Access the uploaded image
+        uploaded_image = request.files['image']
+        
+        # Check if no file is selected
+        if uploaded_image.filename == '':
+            return "No file selected. Please choose an image."
+        
+        # Open the image using Pillow
+        image = Image.open(uploaded_image)
+        
+        # Get the desired width and height from the form submission
+        desired_width = int(request.form['desired_width'])
+        desired_height = int(request.form['desired_height'])
+        
+        # Resize the image to the desired dimensions
+        resized_image = image.resize((desired_width, desired_height))
+        
+        # Define the path to save the resized image
+        save_path = 'static/images/resized/resized_image.jpg'
+        logger.info("Save path: {0}".format(save_path)) 
+        # Save the resized image
+        resized_image.save(save_path)
+        filename = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")+"_"+str(desired_width)+"X"+str(desired_height)+".jpg"
+        shutil.copy(save_path, "static/images/resized/"+filename)   
+        # Return the resized image as a response
+        return render_template('resize_image.html', image=save_path)
+    except Exception as e:
+        # Log any errors
+
+        return "An error occurred while resizing the image."
+
+
+ Something is wrong it wont show a resized image
+ChatGPT
+It seems that your Flask application is not displaying the resized image as expected. Let's troubleshoot this issue step by step:
+
+1. **Check Template Names**: Ensure that the template names in your routes match the actual template filenames. In your `resize_image` route, you are rendering 'resize_image.html', so make sure this template file exists and is located in the correct folder (in this case, 'resize/templates').
+
+2. **Image Path**: Verify that the `image` variable you pass to the template in your `resize_image` route contains the correct file path to the resized image. You can add some debugging to log the `image` variable before rendering the template to see if it points to the expected image file.
+
+   ```python
+   logger.info("Image path: {0}".format(image))
+   ```
+
+3. **HTML `img` Tag**: In your 'resize_image.html' template, ensure that the `img` tag is correctly set up to display the image using the `src` attribute. You should use the `image` variable to set the `src` attribute value. Your template code seems correct in this aspect:
+
+   ```html
+   <img src="{{ image }}" alt="Resized Image">
+   ```
+
+4. **Check the File Path**: Ensure that the resized image is actually being saved in the correct location. You can check the file system to confirm if the image exists in the 'static/images/resized' directory.
+
+5. **Verify Image Format**: Double-check that the image format is supported by HTML. Common formats like JPEG, PNG, and GIF should work fine. Make sure the resized image is in a supported format.
+
+6. **Check for Browser Cache**: Sometimes, the browser may cache images, which can lead to issues with image updates. Try clearing your browser cache or testing the page in a private or incognito window to ensure you're seeing the latest version of the page.
+
+7. **Logging**: Check your application logs to see if there are any errors or issues being logged that might provide clues about what's going wrong.
+
+After going through these steps and addressing any issues you find, try accessing the '/resize_image' route again. If the issue persists, please provide any error messages or additional details from your logs, which can help further diagnose the problem.
+user
+http://localhost:5100/resize/
+results in the form
+# -----resize/resize_index.html
+Image Resizer
+No file chosen
+Desired Width: 
+Desired Height:
+but <form action="/resize.resize_image" method="POST" enctype="multipart/form-data">
+doe not show me the image 
+
+
+ChatGPT
+It seems like the issue is that the image is not being displayed after submitting the form. To display the resized image after form submission, you need to ensure that the `src` attribute of the `img` tag in your 'resize_image.html' template is correctly set to the URL of the resized image.
+
+In your 'resize_image' route, you are passing the `image` variable to the template as the URL of the resized image. This part of your code appears to be correct:
+
+```python
+# Return the resized image as a response
+return render_template('resize_image.html', image=save_path)
+```
+
+In your 'resize_image.html' template, you are using `{{ image }}` as the `src` attribute of the `img` tag, which should display the image. This part of your code also seems correct:
+
+```html
+<img src="{{ image }}" alt="Resized Image">
+```
+
+However, the issue might be related to the path of the image. You are passing the `save_path` variable, which is set to `'static/images/resized/resized_image.jpg'`. Make sure that this path is correct and that the image file exists at that location.
+
+Here are some troubleshooting steps:
+
+1. Verify the Image Path: Check if the resized image file exists at the path you are providing (`'static/images/resized/resized_image.jpg'`). You can do this by navigating to the directory on your filesystem.
+
+2. Check the Image Format: Ensure that the image format (e.g., JPEG) is supported by browsers. If the format is correct, try opening the image directly in your browser to see if it displays.
+
+3. Use a Complete URL: To ensure that the image URL is correctly formed, you can use the Flask `url_for` function to generate the complete URL for the image. Modify your 'resize_image.html' template like this:
+
+   ```html
+   <img src="{{ url_for('static', filename='images/resized/resized_image.jpg') }}" alt="Resized Image">
+   ```
+
+   This will generate a complete URL for the image based on the static folder.
+
+After making these changes, try accessing the '/resize/' route again and submitting the form. If the issue persists, please check the browser's developer console for any error messages related to loading the image, as it might provide additional information about the problem.
+user
+the resized image is not being created. This function works fine alone. It broke when I Blueprinted it   
+ChatGPT
+If the image resizing function was working fine on its own but stopped working when you Blueprinted it, the issue could be related to how you are specifying the paths and routes within the Blueprint.
+
+Here are some steps to troubleshoot and fix the issue:
+
+1. **Blueprint URL Prefix**: In your Blueprint registration, you have specified a URL prefix of `/resize`. Make sure that your form action in 'resize_index.html' uses the correct URL for the 'resize_image' route within the Blueprint. The form action should be:
+
+   ```html
+   <form action="{{ url_for('resize.resize_image') }}" method="POST" enctype="multipart/form-data">
+   ```
+
+   This ensures that the form submission is directed to the correct Blueprint route.
+
+2. **Blueprint Blueprint Route Name**: Check the route name you defined for the 'resize_image' route within your Blueprint. It should be `resize.resize_image`. Make sure this route name is consistent with what you are using in the `url_for` function in your form.
+
+3. **Blueprint Blueprint Folder Structure**: Confirm that the folder structure of your Blueprint follows the same structure as your main application. If your main application has a 'static' folder and a 'templates' folder, your Blueprint should also have these folders within its directory structure.
+
+4. **Blueprint Static Files**: If your Blueprint serves static files (such as images), ensure that the static files are placed within the Blueprint's 'static' folder and that you reference them using `url_for('resize.static', filename='your_image.jpg')`.
+
+5. **Blueprint Template Names**: Verify that the template filenames and the names used in your render_template calls within the Blueprint are correct and follow the Blueprint's folder structure. In your case, it should be 'resize_index.html' and 'resize_image.html' inside the 'templates' folder of your Blueprint.
+
+6. **Blueprint Blueprint Registration**: Double-check the Blueprint registration in your main application. Ensure that you are registering the Blueprint with the correct URL prefix and that it's registered before the Flask app runs.
+
+7. **Route Function Name**: Confirm that the route function names in your Blueprint match the names used in your Blueprint decorators and in your template rendering functions.
+
+After making sure that the Blueprint routes, URLs, and folder structures are correctly configured, test your application again. If the resized image is still not being created, consider adding some logging statements within the Blueprint route to see if the route is being executed correctly and if any errors are occurring during image processing.
+
+If you continue to experience issues, please provide more specific information about your Blueprint structure and code so that I can assist you further.
+user
+An error occurred while resizing the image.
+ChatGPT
+If you're encountering the error message "An error occurred while resizing the image" when using your Flask Blueprint for image resizing, it indicates that there's an issue with the image processing part of your code within the Blueprint. To diagnose and fix this issue, follow these steps:
+
+1. **Logging**: Add comprehensive logging to your image resizing route (`resize_image` function) to capture more information about the error. This will help you identify the exact point at which the error occurs and provide more context. You can log messages before and after significant steps in the image resizing process.
+
+   For example:
+
+   ```python
+   @resize_bp.route('/resize_image', methods=['POST'])
+   def resize_image():
+       try:
+           # Log before processing
+           logger.info("Image resizing started.")
+           
+           # ... Your image resizing code ...
+
+           # Log after processing
+           logger.info("Image resizing completed successfully.")
+           return render_template('resize_image.html', image=save_path)
+       except Exception as e:
+           # Log any errors
+           logger.error("An error occurred while resizing the image: {0}".format(e))
+           return "An error occurred while resizing the image."
+  
+user
+HOW IT SHOULD WORK 
+first I choose an image.
+then it shows me image with a form to add the resize information
+then I click resize
+it then shows me the resized image.
+# -----resize/resize_index.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Resizer</title>
+</head>
+<body>
+    <h1>Image Resizer</h1>
+
+
+
+    <a href="{{ url_for('resize.resize_image') }}">Resize Image</a>
+    <br>
+        <form action="{{ url_for('resize.resize_image') }}" method="POST" enctype="multipart/form-data">
+        <input type="file" name="image" accept="image/*" required><br><br>
+
+            <label for="desired_width">Desired Width:</label>
+            <input type="number" name="desired_width" id="desired_width">
+            <br>
+            <label for="desired_height">Desired Height:</label>
+            <input type="number" name="desired_height" id="desired_height">
+            <br>
+            <input type="submit" value="Resize Image">
+    </form>
+    {% if image %}
+        <img src="{{ image }}" alt="Resized Image">
+    {% endif %}
+</body>
+</html>
+
+# ---------resize/resize_image.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Resizer</title>
+</head>
+<body>
+    
+
+    <h1>Image Resizer</h1>
+    <a href="{{ url_for('resize.resize_image') }}">Back to Home</a>
+    <img src="{{ url_for('static', filename='images/resized/resized_image.jpg') }}" alt="Resized Image">
+
+    {% if image %}
+    <a href="{{ url_for('resize.resize_index') }}">
+        <img src="{{ image }}" alt="Resized Image">
+    </a>
+{% endif %}
+
+</body>
+</html>
+# /resize/resize.py
+from flask import Flask, render_template, request, send_file, Blueprint
+from PIL import Image
+import os
+import shutil
+import datetime
+import logging
+from icecream import ic
+from logging.handlers import RotatingFileHandler
+
+# Configure this files logger Configure logging
+current_dir = os.getcwd()+'/resize/resize.log'
+ic ("Current working directory: {0}".format(current_dir))
+# Create a file handler to write log messages to a single file with rotation
+file_handler = RotatingFileHandler(current_dir, maxBytes=10000, backupCount=1)
+file_handler.setLevel(logging.DEBUG)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO) 
+
+
+# Set the formatter for log messages
+#formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s [in %(pathname)s:%(lineno)d]')
+
+file_handler.setFormatter(formatter)
+
+# Add the file handler to the logger
+logger.addHandler(file_handler)
+
+# Initialize the Flask app
+# Create a Flask app
+resize_bp = Blueprint("resize", __name__, template_folder="templates", static_folder="static", static_url_path="assets", url_prefix="/resize")
+#
+# Define a route for the index page
+@resize_bp.route('/')
+def resize_index():
+    return render_template('resize_index.html')
+
+# Define a route for image resizing
+@resize_bp.route('/resize_image', methods=['POST'])
+def resize_image():
+    try:
+        os.makedirs('static/images/resized', exist_ok=True)
+        # Access the uploaded image
+        uploaded_image = request.files['image']
+        logger.info("Image path: {0}".format(image))
+        
+        # Check if no file is selected
+        if uploaded_image.filename == '':
+            return "No file selected. Please choose an image."
+        
+        # Open the image using Pillow
+        image = Image.open(uploaded_image)
+        
+        # Get the desired width and height from the form submission
+        desired_width = int(request.form['desired_width'])
+        desired_height = int(request.form['desired_height'])
+        
+        # Resize the image to the desired dimensions
+        resized_image = image.resize((desired_width, desired_height))
+        
+        # Define the path to save the resized image
+        save_path = 'static/images/resized/resized_image.jpg'
+        logger.info("Save path: {0}".format(save_path)) 
+        # Save the resized image
+        resized_image.save(save_path)
+        filename = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")+"_"+str(desired_width)+"X"+str(desired_height)+".jpg"
+        shutil.copy(save_path, "static/images/resized/"+filename)   
+        # Return the resized image as a response
+        return render_template('resize_image.html', image=save_path)
+    except Exception as e:
+        # Log any errors
+
+        return "An error occurred while resizing the image."
+Can you find a problem here ?
+
+ 
+ChatGPT
+Based on the code you've provided, it seems like there might be a small issue in your `resize_image` route. Specifically, the order of logging statements and variable usage should be adjusted for proper logging and functionality. Here's the corrected version of your `resize_image` route:
+
+```python
+@resize_bp.route('/resize_image', methods=['POST'])
+def resize_image():
+    try:
+        os.makedirs('static/images/resized', exist_ok=True)
+        # Access the uploaded image
+        uploaded_image = request.files['image']
+        
+        # Check if no file is selected
+        if uploaded_image.filename == '':
+            return "No file selected. Please choose an image."
+        
+        # Open the image using Pillow
+        image = Image.open(uploaded_image)
+        
+        # Get the desired width and height from the form submission
+        desired_width = int(request.form['desired_width'])
+        desired_height = int(request.form['desired_height'])
+        
+        # Define the path to save the resized image
+        save_path = 'static/images/resized/resized_image.jpg'
+        
+        # Resize the image to the desired dimensions
+        resized_image = image.resize((desired_width, desired_height))
+        
+        # Save the resized image
+        resized_image.save(save_path)
+        filename = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")+"_"+str(desired_width)+"X"+str(desired_height)+".jpg"
+        shutil.copy(save_path, "static/images/resized/"+filename)
+
+        # Log the save path after it's assigned
+        logger.info("Save path: {0}".format(save_path)) 
+        
+        # Return the resized image as a response
+        return render_template('resize_image.html', image=url_for('static', filename='images/resized/' + filename))
+    
+    except Exception as e:
+        # Log any errors
+        logger.error("An error occurred while resizing the image: {0}".format(e))
+        return "An error occurred while resizing the image."
+```
+
+Key changes and corrections:
+
+1. The `logger.info("Save path: {0}".format(save_path))` statement should come after the `save_path` is assigned.
+
+2. The `image` variable should not be logged before it's assigned.
+
+3. The `image` variable should be used to create the `resized_image` before saving it.
+
+4. In the `render_template` call, use `url_for` to generate the URL for the resized image based on the `filename`.
+
+With these changes, the resized image should be properly displayed after form submission, and the log messages should provide better insights into the process.
+user
+An error occurred while resizing the image.
+ChatGPT
+I apologize for the confusion. The issue might be related to the `image` variable not being defined before it's logged. To resolve this issue, let's make sure the `image` variable is defined correctly. Here's the corrected code for your `resize_image` route:
+
+```python
+@resize_bp.route('/resize_image', methods=['POST'])
+def resize_image():
+    try:
+        os.makedirs('static/images/resized', exist_ok=True)
+        # Access the uploaded image
+        uploaded_image = request.files['image']
+        
+        # Check if no file is selected
+        if uploaded_image.filename == '':
+            return "No file selected. Please choose an image."
+        
+        # Open the image using Pillow
+        image = Image.open(uploaded_image)
+        
+        # Get the desired width and height from the form submission
+        desired_width = int(request.form['desired_width'])
+        desired_height = int(request.form['desired_height'])
+        
+        # Define the path to save the resized image
+        save_path = 'static/images/resized/resized_image.jpg'
+        
+        # Resize the image to the desired dimensions
+        resized_image = image.resize((desired_width, desired_height))
+        
+        # Save the resized image
+        resized_image.save(save_path)
+        filename = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")+"_"+str(desired_width)+"X"+str(desired_height)+".jpg"
+        shutil.copy(save_path, "static/images/resized/"+filename)
+
+        # Log the save path after it's assigned
+        logger.info("Save path: {0}".format(save_path)) 
+        
+        # Return the resized image as a response
+        return render_template('resize_image.html', image=url_for('static', filename='images/resized/' + filename))
+    
+    except Exception as e:
+        # Log any errors
+        logger.error("An error occurred while resizing the image: {0}".format(e))
+        return "An error occurred while resizing the image."
+```
+
+With these changes, the `image` variable is correctly defined after opening the uploaded image, and the error should be resolved. If you continue to encounter issues, please check the Flask logs or the Python console for any specific error messages that might provide more details on the problem.
+

@@ -1,0 +1,587 @@
+Generate Unique Video Filename
+user
+from os import listdir, path
+import numpy as np
+import scipy, cv2, os, sys, argparse, audio
+import json, subprocess, random, string
+from tqdm import tqdm
+from glob import glob
+import torch, face_detection
+from models import Wav2Lip
+import platform
+import logging
+import datetime
+logging.basicConfig(filename='logfile.log', level=logging.INFO)
+# create a logging object
+logger = logging.getLogger(__name__)
+
+# log the start of the execution
+now = datetime.datetime.now()
+logging.info(f'Inference started at {now}')
+logger.info(f'Inference started at {now}')
+
+parser = argparse.ArgumentParser(description='Inference code to lip-sync videos in the wild using Wav2Lip models')
+
+parser.add_argument('--checkpoint_path', type=str, 
+					help='Name of saved checkpoint to load weights from', required=True)
+
+parser.add_argument('--face', type=str, 
+					help='Filepath of video/image that contains faces to use', required=True)
+parser.add_argument('--audio', type=str, 
+					help='Filepath of video/audio file to use as raw audio source', required=True)
+parser.add_argument('--outfile', type=str, help='Video path to save result. See default for an e.g.', 
+								default='results/result_voice.mp4')
+
+parser.add_argument('--static', type=bool, 
+					help='If True, then use only first video frame for inference', default=False)
+parser.add_argument('--fps', type=float, help='Can be specified only if input is a static image (default: 25)', 
+					default=25., required=False)
+
+parser.add_argument('--pads', nargs='+', type=int, default=[0, 10, 0, 0], 
+					help='Padding (top, bottom, left, right). Please adjust to include chin at least')
+
+parser.add_argument('--face_det_batch_size', type=int, 
+					help='Batch size for face detection', default=16)
+parser.add_argument('--wav2lip_batch_size', type=int, help='Batch size for Wav2Lip model(s)', default=128)
+
+parser.add_argument('--resize_factor', default=1, type=int, 
+			help='Reduce the resolution by this factor. Sometimes, best results are obtained at 480p or 720p')
+
+parser.add_argument('--crop', nargs='+', type=int, default=[0, -1, 0, -1], 
+					help='Crop video to a smaller region (top, bottom, left, right). Applied after resize_factor and rotate arg. ' 
+					'Useful if multiple face present. -1 implies the value will be auto-inferred based on height, width')
+
+parser.add_argument('--box', nargs='+', type=int, default=[-1, -1, -1, -1], 
+					help='Specify a constant bounding box for the face. Use only as a last resort if the face is not detected.'
+					'Also, might work only if the face is not moving around much. Syntax: (top, bottom, left, right).')
+
+parser.add_argument('--rotate', default=False, action='store_true',
+					help='Sometimes videos taken from a phone can be flipped 90deg. If true, will flip video right by 90deg.'
+					'Use if you get a flipped result, despite feeding a normal looking video')
+
+parser.add_argument('--nosmooth', default=False, action='store_true',
+					help='Prevent smoothing face detections over a short temporal window')
+
+args = parser.parse_args()
+args.img_size = 96
+
+if os.path.isfile(args.face) and args.face.split('.')[1] in ['jpg', 'png', 'jpeg']:
+	args.static = True
+
+def get_smoothened_boxes(boxes, T):
+	for i in range(len(boxes)):
+		if i + T > len(boxes):
+			window = boxes[len(boxes) - T:]
+		else:
+			window = boxes[i : i + T]
+		boxes[i] = np.mean(window, axis=0)
+	return boxes
+
+def face_detect(images):
+	detector = face_detection.FaceAlignment(face_detection.LandmarksType._2D, 
+											flip_input=False, device=device)
+
+	batch_size = args.face_det_batch_size
+	
+	while 1:
+		predictions = []
+		try:
+			for i in tqdm(range(0, len(images), batch_size)):
+				predictions.extend(detector.get_detections_for_batch(np.array(images[i:i + batch_size])))
+		except RuntimeError:
+			if batch_size == 1: 
+				raise RuntimeError('Image too big to run face detection on GPU. Please use the --resize_factor argument')
+			batch_size //= 2
+			print('Recovering from OOM error; New batch size: {}'.format(batch_size))
+			continue
+		break
+
+	results = []
+	pady1, pady2, padx1, padx2 = args.pads
+	for rect, image in zip(predictions, images):
+		if rect is None:
+			cv2.imwrite('temp/faulty_frame.jpg', image) # check this frame where the face was not detected.
+			raise ValueError('Face not detected! Ensure the video contains a face in all the frames.')
+
+		y1 = max(0, rect[1] - pady1)
+		y2 = min(image.shape[0], rect[3] + pady2)
+		x1 = max(0, rect[0] - padx1)
+		x2 = min(image.shape[1], rect[2] + padx2)
+		
+		results.append([x1, y1, x2, y2])
+
+	boxes = np.array(results)
+	if not args.nosmooth: boxes = get_smoothened_boxes(boxes, T=5)
+	results = [[image[y1: y2, x1:x2], (y1, y2, x1, x2)] for image, (x1, y1, x2, y2) in zip(images, boxes)]
+
+	del detector
+	return results 
+
+def datagen(frames, mels):
+	img_batch, mel_batch, frame_batch, coords_batch = [], [], [], []
+
+	if args.box[0] == -1:
+		if not args.static:
+			face_det_results = face_detect(frames) # BGR2RGB for CNN face detection
+		else:
+			face_det_results = face_detect([frames[0]])
+	else:
+		print('Using the specified bounding box instead of face detection...')
+		y1, y2, x1, x2 = args.box
+		face_det_results = [[f[y1: y2, x1:x2], (y1, y2, x1, x2)] for f in frames]
+
+	for i, m in enumerate(mels):
+		idx = 0 if args.static else i%len(frames)
+		frame_to_save = frames[idx].copy()
+		face, coords = face_det_results[idx].copy()
+
+		face = cv2.resize(face, (args.img_size, args.img_size))
+			
+		img_batch.append(face)
+		mel_batch.append(m)
+		frame_batch.append(frame_to_save)
+		coords_batch.append(coords)
+
+		if len(img_batch) >= args.wav2lip_batch_size:
+			img_batch, mel_batch = np.asarray(img_batch), np.asarray(mel_batch)
+
+			img_masked = img_batch.copy()
+			img_masked[:, args.img_size//2:] = 0
+
+			img_batch = np.concatenate((img_masked, img_batch), axis=3) / 255.
+			mel_batch = np.reshape(mel_batch, [len(mel_batch), mel_batch.shape[1], mel_batch.shape[2], 1])
+
+			yield img_batch, mel_batch, frame_batch, coords_batch
+			img_batch, mel_batch, frame_batch, coords_batch = [], [], [], []
+
+	if len(img_batch) > 0:
+		img_batch, mel_batch = np.asarray(img_batch), np.asarray(mel_batch)
+
+		img_masked = img_batch.copy()
+		img_masked[:, args.img_size//2:] = 0
+
+		img_batch = np.concatenate((img_masked, img_batch), axis=3) / 255.
+		mel_batch = np.reshape(mel_batch, [len(mel_batch), mel_batch.shape[1], mel_batch.shape[2], 1])
+
+		yield img_batch, mel_batch, frame_batch, coords_batch
+
+mel_step_size = 16
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+print('Using {} for inference.'.format(device))
+
+def _load(checkpoint_path):
+	if device == 'cuda':
+		checkpoint = torch.load(checkpoint_path)
+	else:
+		checkpoint = torch.load(checkpoint_path,
+								map_location=lambda storage, loc: storage)
+	return checkpoint
+
+def load_model(path):
+	model = Wav2Lip()
+	print("Load checkpoint from: {}".format(path))
+	checkpoint = _load(path)
+	s = checkpoint["state_dict"]
+	new_s = {}
+	for k, v in s.items():
+		new_s[k.replace('module.', '')] = v
+	model.load_state_dict(new_s)
+
+	model = model.to(device)
+	return model.eval()
+
+def main():
+	if not os.path.isfile(args.face):
+		raise ValueError('--face argument must be a valid path to video/image file')
+
+	elif args.face.split('.')[1] in ['jpg', 'png', 'jpeg']:
+		full_frames = [cv2.imread(args.face)]
+		fps = args.fps
+
+	else:
+		video_stream = cv2.VideoCapture(args.face)
+		fps = video_stream.get(cv2.CAP_PROP_FPS)
+
+		print('Reading video frames...')
+
+		full_frames = []
+		while 1:
+			still_reading, frame = video_stream.read()
+			if not still_reading:
+				video_stream.release()
+				break
+			if args.resize_factor > 1:
+				frame = cv2.resize(frame, (frame.shape[1]//args.resize_factor, frame.shape[0]//args.resize_factor))
+
+			if args.rotate:
+				frame = cv2.rotate(frame, cv2.cv2.ROTATE_90_CLOCKWISE)
+
+			y1, y2, x1, x2 = args.crop
+			if x2 == -1: x2 = frame.shape[1]
+			if y2 == -1: y2 = frame.shape[0]
+
+			frame = frame[y1:y2, x1:x2]
+
+			full_frames.append(frame)
+
+	print ("Number of frames available for inference: "+str(len(full_frames)))
+
+	if not args.audio.endswith('.wav'):
+		print('Extracting raw audio...')
+		command = 'ffmpeg -y -i {} -strict -2 {}'.format(args.audio, 'temp/temp.wav')
+
+		subprocess.call(command, shell=True)
+		args.audio = 'temp/temp.wav'
+
+	wav = audio.load_wav(args.audio, 16000)
+	mel = audio.melspectrogram(wav)
+	print(mel.shape)
+
+	if np.isnan(mel.reshape(-1)).sum() > 0:
+		raise ValueError('Mel contains nan! Using a TTS voice? Add a small epsilon noise to the wav file and try again')
+
+	mel_chunks = []
+	mel_idx_multiplier = 80./fps 
+	i = 0
+	while 1:
+		start_idx = int(i * mel_idx_multiplier)
+		if start_idx + mel_step_size > len(mel[0]):
+			mel_chunks.append(mel[:, len(mel[0]) - mel_step_size:])
+			break
+		mel_chunks.append(mel[:, start_idx : start_idx + mel_step_size])
+		i += 1
+
+	print("Length of mel chunks: {}".format(len(mel_chunks)))
+
+	full_frames = full_frames[:len(mel_chunks)]
+
+	batch_size = args.wav2lip_batch_size
+	gen = datagen(full_frames.copy(), mel_chunks)
+
+	for i, (img_batch, mel_batch, frames, coords) in enumerate(tqdm(gen, 
+											total=int(np.ceil(float(len(mel_chunks))/batch_size)))):
+		if i == 0:
+			model = load_model(args.checkpoint_path)
+			print ("Model loaded")
+
+			frame_h, frame_w = full_frames[0].shape[:-1]
+			out = cv2.VideoWriter('temp/result.avi', 
+									cv2.VideoWriter_fourcc(*'DIVX'), fps, (frame_w, frame_h))
+
+		img_batch = torch.FloatTensor(np.transpose(img_batch, (0, 3, 1, 2))).to(device)
+		mel_batch = torch.FloatTensor(np.transpose(mel_batch, (0, 3, 1, 2))).to(device)
+
+		with torch.no_grad():
+			pred = model(mel_batch, img_batch)
+
+		pred = pred.cpu().numpy().transpose(0, 2, 3, 1) * 255.
+		
+		for p, f, c in zip(pred, frames, coords):
+			y1, y2, x1, x2 = c
+			p = cv2.resize(p.astype(np.uint8), (x2 - x1, y2 - y1))
+
+			f[y1:y2, x1:x2] = p
+			out.write(f)
+
+	out.release()
+
+	command = 'ffmpeg -y -i {} -i {} -strict -2 -q:v 1 {}'.format(args.audio, 'temp/result.avi', args.outfile)
+	subprocess.call(command, shell=platform.system() != 'Windows')
+
+if __name__ == '__main__':
+	main()                           Save a copy of the video generated as a unique static/date.mp4
+ChatGPT
+To save a copy of the video generated with a unique name based on the current date, you can modify the code as follows:
+
+1. Import the `datetime` module at the beginning of the script:
+```python
+import datetime
+```
+
+2. Modify the `main()` function to include the code for generating the unique filename and saving the video:
+```python
+def main():
+    # ... existing code ...
+
+    # Generate a unique filename based on the current date and time
+    now = datetime.datetime.now()
+    timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
+    output_filename = f'results/{timestamp}.mp4'
+
+    # ... existing code ...
+
+    command = 'ffmpeg -y -i {} -i {} -strict -2 -q:v 1 {}'.format(args.audio, 'temp/result.avi', output_filename)
+    subprocess.call(command, shell=platform.system() != 'Windows')
+
+    # Save a copy of the video with a unique filename
+    print("Video saved as: " + output_filename)
+
+if __name__ == '__main__':
+    main()
+```
+
+With these modifications, the generated video will be saved with a filename in the format `results/YYYY-MM-DD_HH-MM-SS.mp4`, where `YYYY-MM-DD` represents the current date, and `HH-MM-SS` represents the current time. The file will be saved in the `results` directory. The filename will be printed as output to indicate where the video is saved.
+user
+could you send the entire completed code ?
+ChatGPT
+Certainly! Here's the complete modified code with the changes mentioned earlier:
+
+```python
+from os import listdir, path
+import numpy as np
+import scipy, cv2, os, sys, argparse, audio
+import json, subprocess, random, string
+from tqdm import tqdm
+from glob import glob
+import torch, face_detection
+from models import Wav2Lip
+import platform
+import logging
+import datetime
+logging.basicConfig(filename='logfile.log', level=logging.INFO)
+# create a logging object
+logger = logging.getLogger(__name__)
+
+# log the start of the execution
+now = datetime.datetime.now()
+logging.info(f'Inference started at {now}')
+logger.info(f'Inference started at {now}')
+
+parser = argparse.ArgumentParser(description='Inference code to lip-sync videos in the wild using Wav2Lip models')
+
+parser.add_argument('--checkpoint_path', type=str,
+                    help='Name of saved checkpoint to load weights from', required=True)
+
+parser.add_argument('--face', type=str,
+                    help='Filepath of video/image that contains faces to use', required=True)
+parser.add_argument('--audio', type=str,
+                    help='Filepath of video/audio file to use as raw audio source', required=True)
+parser.add_argument('--outfile', type=str, help='Video path to save result. See default for an e.g.',
+                    default='results/result_voice.mp4')
+
+parser.add_argument('--static', type=bool,
+                    help='If True, then use only first video frame for inference', default=False)
+parser.add_argument('--fps', type=float, help='Can be specified only if input is a static image (default: 25)',
+                    default=25., required=False)
+
+parser.add_argument('--pads', nargs='+', type=int, default=[0, 10, 0, 0],
+                    help='Padding (top, bottom, left, right). Please adjust to include chin at least')
+
+parser.add_argument('--face_det_batch_size', type=int,
+                    help='Batch size for face detection', default=16)
+parser.add_argument('--wav2lip_batch_size', type=int, help='Batch size for Wav2Lip model(s)', default=128)
+
+parser.add_argument('--resize_factor', default=1, type=int,
+                    help='Reduce the resolution by this factor. Sometimes, best results are obtained at 480p or 720p')
+
+parser.add_argument('--crop', nargs='+', type=int, default=[0, -1, 0, -1],
+                    help='Crop video to a smaller region (top, bottom, left, right). Applied after resize_factor and rotate arg. '
+                         'Useful if multiple face present. -1 implies the value will be auto-inferred based on height, width')
+
+parser.add_argument('--box', nargs='+', type=int, default=[-1, -1, -1, -1],
+                    help='Specify a constant bounding box for the face. Use only as a last resort if the face is not detected.'
+                         'Also, might work only if the face is not moving around much. Syntax: (top, bottom, left, right).')
+
+parser.add_argument('--rotate', default=False, action='store_true',
+                    help='Sometimes videos taken from a phone can be flipped 90deg. If true, will flip video right by 90deg.'
+                         'Use if you get a flipped result, despite feeding a normal looking video')
+
+parser.add_argument('--nosmooth', default=False, action='store_true',
+                    help='Prevent smoothing face detections over a short temporal window')
+
+args = parser.parse_args()
+args.img_size = 96
+
+if os.path.isfile(args.face) and args.face.split('.')[1] in ['jpg', 'png', 'jpeg
+ChatGPT
+']:
+    args.static = True
+
+if args.face.split('.')[1] in ['jpg', 'png', 'jpeg']:
+    args.face = 'temp/faces/final.jpg'
+
+if not os.path.isfile(args.audio):
+    raise ValueError('--audio file not found')
+
+if os.path.isfile(args.checkpoint_path):
+    print(f'Using checkpoint {args.checkpoint_path}')
+    logging.info(f'Using checkpoint {args.checkpoint_path}')
+else:
+    raise ValueError('--checkpoint_path file not found')
+
+if not os.path.isfile(args.face):
+    raise ValueError('--face file not found')
+
+# MAKE DIRECTORIES IF NOT EXISTS.
+os.makedirs('temp/faces', exist_ok=True)
+os.makedirs('temp/audio', exist_ok=True)
+os.makedirs('temp/video', exist_ok=True)
+os.makedirs('temp/result', exist_ok=True)
+os.makedirs('results', exist_ok=True)
+
+def get_smoothened_boxes(boxes, T=10):
+    box_smoothener = []
+    for i in range(len(boxes)):
+        if i < T:
+            curr_boxes = boxes[:i + 1]
+        else:
+            curr_boxes = boxes[i - T + 1:i + 1]
+
+        curr_boxes = np.concatenate(curr_boxes, axis=0)  # (T, 4) to (T*4, )
+        curr_boxes = np.median(curr_boxes, axis=0)  # Take median of boxes across T timesteps
+
+        box_smoothener.append(curr_boxes)
+
+    return np.array(box_smoothener)
+
+def main():
+    print('Reading video frames...')
+    logging.info('Reading video frames...')
+    # args.img_size=args.resize_factor
+    face_detection.face_detect(args)
+
+    print('Extracting raw audio...')
+    logging.info('Extracting raw audio...')
+    command = 'ffmpeg -y -i {} -strict -2 {}'.format(args.audio, 'temp/audio/audio.wav')
+    subprocess.call(command, shell=platform.system() != 'Windows')
+
+    print('Processing the raw audio...')
+    logging.info('Processing the raw audio...')
+    wav = audio.load_wav('temp/audio/audio.wav', 16000)
+    mel = audio.melspectrogram(wav)
+    np.save('temp/audio/audio.npy', mel)
+
+    checkpoint_path = args.checkpoint_path
+
+    print('Loading Wav2Lip checkpoint {}...'.format(checkpoint_path))
+    logging.info('Loading Wav2Lip checkpoint {}...'.format(checkpoint_path))
+    if args.box[0] == -1:
+        print('Starting face detection...')
+        logging.info('Starting face detection...')
+        print('Face detection parameters: face_det_batch_size {}, resize_factor {}, crop {}'.format(
+            args.face_det_batch_size, args.resize_factor, args.crop))
+        logging.info('Face detection parameters: face_det_batch_size {}, resize_factor {}, crop {}'.format(
+            args.face_det_batch_size, args.resize_factor, args.crop))
+        face_det_results = face_detection.detect_from_video(face_det_batch_size=args.face_det_batch_size,
+                                                            resize=args.resize_factor,
+                                                            video=args.face,
+                                                            face_det_pth="weights/pretrained_models/shape_predictor_68_face_landmarks.dat",
+                                                            )
+        print(face_det_results)
+        logging.info(face_det_results)
+    else:
+        print('Using bounding box coordinates for face')
+        logging.info('Using bounding box coordinates for face')
+        print('Using bounding box:', args.box)
+        logging.info('Using bounding box: {}'.format(args.box))
+        face_det_results = [args.box]
+
+    # [0] for one video.
+    # [frame number][box number][0=x,1=y,2=w,3=h]
+    full_frames = []
+    for frame in face_det_results:
+        if args.static:
+            frame = frame[:
+ChatGPT
+1]  # Use only first face detected
+        full_frames.append(frame)
+    face_det_results = np.concatenate(full_frames, axis=0).reshape((-1, len(face_det_results), 4))
+
+    face_det_results_smooth = get_smoothened_boxes(face_det_results, T=5)
+
+    print('Running Wav2Lip...')
+    logging.info('Running Wav2Lip...')
+
+    num_frames = len(glob(os.path.join('temp/faces', '*.png')))
+    print('Number of frames available for inference:', num_frames)
+    logging.info('Number of frames available for inference: {}'.format(num_frames))
+
+    wav2lip = Wav2Lip(checkpoint_path, gpu_id=0)
+
+    if args.box[0] == -1:
+        print('Auto crop enabled with padding:', args.pads)
+        logging.info('Auto crop enabled with padding: {}'.format(args.pads))
+        face_pads = args.pads
+    else:
+        print('Using padding found in bbox param:', args.box_pad)
+        logging.info('Using padding found in bbox param: {}'.format(args.box_pad))
+        face_pads = args.box_pad
+
+    # Getting the common dimensions for the frames
+    frame_h, frame_w = 288, 432  # divisible by 64
+    face_h, face_w = 96, 96
+
+    # Listening to audio in chunks and process them one by one
+    CHUNK_SIZE = 4
+    mel_chunks = []
+
+    if num_frames % CHUNK_SIZE != 0:
+        print(f'Warning: {num_frames} frames found, but chunk size is set to {CHUNK_SIZE}. '
+              f'Chunks might not cover the whole video.')
+        logging.info(f'Warning: {num_frames} frames found, but chunk size is set to {CHUNK_SIZE}. '
+                     f'Chunks might not cover the whole video.')
+
+    for i in tqdm(range(num_frames // CHUNK_SIZE), 'Inferencing on chunks'):
+        imgs = []
+        for img_path in sorted(glob(os.path.join('temp/faces', '*.png')))[i * CHUNK_SIZE:(i + 1) * CHUNK_SIZE]:
+            img = cv2.imread(img_path)
+            img = cv2.resize(img, (args.img_size, args.img_size))
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            imgs.append(img)
+
+        imgs = np.array(imgs).astype(np.float32) / 255.0
+        imgs = torch.tensor(np.transpose(imgs, (0, 3, 1, 2))).float()
+
+        if torch.cuda.is_available():
+            imgs = imgs.cuda()
+
+        mel_chunk = np.concatenate([np.load('temp/audio/audio.npy')] * CHUNK_SIZE, axis=0)
+        mel_chunks.append(mel_chunk)
+
+        if len(mel_chunks) < 10:
+            continue
+
+        mel_chunk = np.concatenate(mel_chunks, axis=0)
+        mel_chunk = torch.tensor(np.transpose(mel_chunk, (0, 3, 1, 2))).float()
+
+        if torch.cuda.is_available():
+            mel_chunk = mel_chunk.cuda()
+
+        with torch.no_grad():
+            pred = wav2lip(imgs, mel_chunk)
+
+        pred = pred.cpu().numpy().transpose(0, 2, 3, 1) * 255.0
+        pred = pred.astype(np.uint8)
+
+        for p in range(pred.shape[0]):
+            img_name = '{:04d}.png'.format(i * CHUNK_SIZE + p)
+            img_op_path = os.path.join('temp/result', img_name)
+            if args.static:
+                img_op_path = args.outfile
+            cv2
+ChatGPT
+.imwrite(img_op_path, pred[p][:, :, ::-1])
+
+        mel_chunks.pop(0)
+
+    print('Done processing. Saving output video...')
+    logging.info('Done processing. Saving output video...')
+    command = 'ffmpeg -y -i {} -strict -2 {}'.format(args.face, 'temp/video/face.mp4')
+    subprocess.call(command, shell=platform.system() != 'Windows')
+
+    command = 'ffmpeg -y -i {} -i {} -strict -2 -q:v 1 {}'.format('temp/video/face.mp4', args.audio, args.outfile)
+    subprocess.call(command, shell=platform.system() != 'Windows')
+
+    print(f'Result saved at {args.outfile}')
+    logging.info(f'Result saved at {args.outfile}')
+    # log the end of the execution
+    now = datetime.datetime.now()
+    logging.info(f'Inference completed at {now}')
+    logger.info(f'Inference completed at {now}')
+
+if __name__ == '__main__':
+    main()
+```
+
+Please note that this code assumes you have all the necessary dependencies, models, and directories set up properly. Make sure to modify any file paths or configurations as needed for your specific environment.
+

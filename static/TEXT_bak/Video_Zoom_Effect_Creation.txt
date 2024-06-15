@@ -1,0 +1,373 @@
+Video Zoom Effect Creation
+user
+zoom_n_join.py
+import os
+import random
+from moviepy.editor import VideoFileClip, concatenate_videoclips
+import glob
+import cv2
+import numpy as np
+import imagehash
+from PIL import Image
+from sys import argv
+
+def calculate_hash(frame):
+    # Convert frame to grayscale
+    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    # Calculate hash using average hashing (aHash)
+    hash_value = imagehash.average_hash(Image.fromarray(gray_frame))
+
+    return hash_value
+
+def extract_unique_frames(input_video_path):
+    cap = cv2.VideoCapture(input_video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+
+    unique_frames = []
+    prev_hash = None
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        # Calculate hash of the frame
+        hash_value = calculate_hash(frame)
+
+        # Check if the hash is different from the previous frame
+        if prev_hash is None or hash_value != prev_hash:
+            unique_frames.append(frame)
+            prev_hash = hash_value
+
+    cap.release()
+    return unique_frames, fps
+
+def create_zoom_video(frames, output_video_path, fps, zoom_factor=1.5, num_frames_zoom=50):
+    # Define video codec and create VideoWriter object
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    video_writer = cv2.VideoWriter(output_video_path, fourcc, fps, (frames[0].shape[1], frames[0].shape[0]))
+
+    for frame in frames:
+        # Apply zoom effect to the frame
+        zoomed_frames = interpolate_zoom(frame, zoom_factor, num_frames_zoom)
+
+        # Add frames to video writer
+        for zoomed_frame in zoomed_frames:
+            video_writer.write(zoomed_frame)
+
+    video_writer.release()
+
+def interpolate_zoom(frame, zoom_factor, num_frames_zoom):
+    zoomed_frames = []
+    for i in range(num_frames_zoom):
+        # Interpolate zoom factor
+        current_zoom = 1 + (zoom_factor - 1) * (i / (num_frames_zoom - 1))
+
+        # Apply zoom effect to the frame
+        zoomed_frame = zoom_frame(frame, current_zoom)
+
+        zoomed_frames.append(zoomed_frame)
+
+    return zoomed_frames
+
+def zoom_frame(frame, zoom_factor):
+    # Get frame dimensions
+    height, width = frame.shape[:2]
+
+    # Compute new dimensions after zooming
+    new_width = int(width * zoom_factor)
+    new_height = int(height * zoom_factor)
+
+    # Resize the frame to apply the zoom effect
+    zoomed_frame = cv2.resize(frame, (new_width, new_height))
+
+    # Compute cropping coordinates to maintain original size and zoom to center
+    crop_x1 = (new_width - width) // 2
+    crop_x2 = crop_x1 + width
+    crop_y1 = (new_height - height) // 2
+    crop_y2 = crop_y1 + height
+
+    # Crop the zoomed frame to original dimensions
+    zoomed_frame = zoomed_frame[crop_y1:crop_y2, crop_x1:crop_x2]
+
+    return zoomed_frame
+
+
+
+    # Create output directory if it doesn't exist
+    if not os.path.exists(output_video_directory):
+        os.makedirs(output_video_directory)
+
+    # Extract unique frames from the input video
+    unique_frames, fps = extract_unique_frames(input_video)
+
+    # Create zoomed video for each frame
+    for i, frame in enumerate(unique_frames):
+        output_video_path = os.path.join(output_video_directory, f"zoomed_video_{i}.mp4")
+        create_zoom_video([frame], output_video_path, fps, zoom_factor=1.5, num_frames_zoom=50)
+
+
+def join():
+    # Get a list of all the .mp4 files in the current directory
+    selected_files = glob.glob('zoomed_videos/*.mp4')
+
+    # Choose 10 random files from the list
+    selected_file = random.sample(selected_files, 10)
+ 
+    # shuffle the list of selected files
+    random.shuffle(selected_files)
+
+    # Load each selected file as a VideoFileClip object
+    clips = [VideoFileClip(f) for f in selected_files]
+
+    # Concatenate the clips into one video
+    final_clip = concatenate_videoclips(clips)
+
+    # Write the final video to a file
+    final_clip.write_videofile("output_zoomed2.mp4")
+
+
+ if __name__ == "__main__":
+    input_video = argv[1]
+    output_video_directory = "zoomed_videos" 
+    join()  
+ -----------------------------------  this is supposed to take a video  argv[1] and make a directory of zoomed videos from the unique frames. then join the directory of zoomed video into one.
+zoom_n_join.py shory_mix_screenCap.mp4 
+ChatGPT
+Here's the complete and corrected version of `zoom_n_join.py`, incorporating logging for better debugging and making sure it correctly processes the input video to create zoomed videos from unique frames and then joins them into one final video.
+
+```python
+import os
+import random
+from moviepy.editor import VideoFileClip, concatenate_videoclips
+import glob
+import cv2
+import numpy as np
+import imagehash
+from PIL import Image
+from sys import argv
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def calculate_hash(frame):
+    logging.debug("Calculating hash for a frame.")
+    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    hash_value = imagehash.average_hash(Image.fromarray(gray_frame))
+    return hash_value
+
+def extract_unique_frames(input_video_path):
+    logging.info(f"Extracting unique frames from {input_video_path}")
+    cap = cv2.VideoCapture(input_video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+
+    unique_frames = []
+    prev_hash = None
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        hash_value = calculate_hash(frame)
+        if prev_hash is None or hash_value != prev_hash:
+            unique_frames.append(frame)
+            prev_hash = hash_value
+
+    cap.release()
+    logging.info(f"Extracted {len(unique_frames)} unique frames.")
+    return unique_frames, fps
+
+def create_zoom_video(frames, output_video_path, fps, zoom_factor=1.5, num_frames_zoom=50):
+    logging.info(f"Creating zoom video at {output_video_path}")
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    video_writer = cv2.VideoWriter(output_video_path, fourcc, fps, (frames[0].shape[1], frames[0].shape[0]))
+
+    for frame in frames:
+        zoomed_frames = interpolate_zoom(frame, zoom_factor, num_frames_zoom)
+        for zoomed_frame in zoomed_frames:
+            video_writer.write(zoomed_frame)
+
+    video_writer.release()
+    logging.info(f"Zoom video created at {output_video_path}")
+
+def interpolate_zoom(frame, zoom_factor, num_frames_zoom):
+    zoomed_frames = []
+    for i in range(num_frames_zoom):
+        current_zoom = 1 + (zoom_factor - 1) * (i / (num_frames_zoom - 1))
+        zoomed_frame = zoom_frame(frame, current_zoom)
+        zoomed_frames.append(zoomed_frame)
+    return zoomed_frames
+
+def zoom_frame(frame, zoom_factor):
+    height, width = frame.shape[:2]
+    new_width = int(width * zoom_factor)
+    new_height = int(height * zoom_factor)
+    zoomed_frame = cv2.resize(frame, (new_width, new_height))
+
+    crop_x1 = (new_width - width) // 2
+    crop_x2 = crop_x1 + width
+    crop_y1 = (new_height - height) // 2
+    crop_y2 = crop_y1 + height
+
+    zoomed_frame = zoomed_frame[crop_y1:crop_y2, crop_x1:crop_x2]
+    return zoomed_frame
+
+def create_zoomed_videos(input_video, output_video_directory):
+    if not os.path.exists(output_video_directory):
+        os.makedirs(output_video_directory)
+
+    unique_frames, fps = extract_unique_frames(input_video)
+
+    for i, frame in enumerate(unique_frames):
+        output_video_path = os.path.join(output_video_directory, f"zoomed_video_{i}.mp4")
+        create_zoom_video([frame], output_video_path, fps, zoom_factor=1.5, num_frames_zoom=50)
+
+def join():
+    logging.info("Joining zoomed videos into one final video.")
+    selected_files = glob.glob('zoomed_videos/*.mp4')
+
+    if len(selected_files) < 10:
+        logging.error("Not enough zoomed videos to select 10.")
+        return
+
+    selected_files = random.sample(selected_files, 10)
+    random.shuffle(selected_files)
+
+    clips = [VideoFileClip(f) for f in selected_files]
+    final_clip = concatenate_videoclips(clips)
+    final_clip.write_videofile("output_zoomed2.mp4")
+    logging.info("Final video created as output_zoomed2.mp4")
+
+if __name__ == "__main__":
+    if len(argv) < 2:
+        logging.error("No input video specified.")
+        exit(1)
+
+    input_video = argv[1]
+    output_video_directory = "zoomed_videos"
+
+    create_zoomed_videos(input_video, output_video_directory)
+    join()
+```
+
+In this corrected version:
+
+1. The script now contains detailed logging for debugging purposes.
+2. The `create_zoomed_videos` function has been added to ensure all steps are included in the `if __name__ == "__main__":` block.
+3. The script correctly processes the input video to create a directory of zoomed videos from unique frames and then joins these videos into one final video.
+
+You can run this script using the command `python zoom_n_join.py <input_video_path>`. Make sure to replace `<input_video_path>` with the actual path to your input video file.
+user
+NO LOGGING
+ChatGPT
+Sure, here's the complete `zoom_n_join.py` script without logging:
+
+```python
+import os
+import random
+from moviepy.editor import VideoFileClip, concatenate_videoclips
+import glob
+import cv2
+import numpy as np
+import imagehash
+from PIL import Image
+from sys import argv
+
+def calculate_hash(frame):
+    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    hash_value = imagehash.average_hash(Image.fromarray(gray_frame))
+    return hash_value
+
+def extract_unique_frames(input_video_path):
+    cap = cv2.VideoCapture(input_video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+
+    unique_frames = []
+    prev_hash = None
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        hash_value = calculate_hash(frame)
+        if prev_hash is None or hash_value != prev_hash:
+            unique_frames.append(frame)
+            prev_hash = hash_value
+
+    cap.release()
+    return unique_frames, fps
+
+def create_zoom_video(frames, output_video_path, fps, zoom_factor=1.5, num_frames_zoom=50):
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    video_writer = cv2.VideoWriter(output_video_path, fourcc, fps, (frames[0].shape[1], frames[0].shape[0]))
+
+    for frame in frames:
+        zoomed_frames = interpolate_zoom(frame, zoom_factor, num_frames_zoom)
+        for zoomed_frame in zoomed_frames:
+            video_writer.write(zoomed_frame)
+
+    video_writer.release()
+
+def interpolate_zoom(frame, zoom_factor, num_frames_zoom):
+    zoomed_frames = []
+    for i in range(num_frames_zoom):
+        current_zoom = 1 + (zoom_factor - 1) * (i / (num_frames_zoom - 1))
+        zoomed_frame = zoom_frame(frame, current_zoom)
+        zoomed_frames.append(zoomed_frame)
+    return zoomed_frames
+
+def zoom_frame(frame, zoom_factor):
+    height, width = frame.shape[:2]
+    new_width = int(width * zoom_factor)
+    new_height = int(height * zoom_factor)
+    zoomed_frame = cv2.resize(frame, (new_width, new_height))
+
+    crop_x1 = (new_width - width) // 2
+    crop_x2 = crop_x1 + width
+    crop_y1 = (new_height - height) // 2
+    crop_y2 = crop_y1 + height
+
+    zoomed_frame = zoomed_frame[crop_y1:crop_y2, crop_x1:crop_x2]
+    return zoomed_frame
+
+def create_zoomed_videos(input_video, output_video_directory):
+    if not os.path.exists(output_video_directory):
+        os.makedirs(output_video_directory)
+
+    unique_frames, fps = extract_unique_frames(input_video)
+
+    for i, frame in enumerate(unique_frames):
+        output_video_path = os.path.join(output_video_directory, f"zoomed_video_{i}.mp4")
+        create_zoom_video([frame], output_video_path, fps, zoom_factor=1.5, num_frames_zoom=50)
+
+def join():
+    selected_files = glob.glob('zoomed_videos/*.mp4')
+
+    if len(selected_files) < 10:
+        return
+
+    selected_files = random.sample(selected_files, 10)
+    random.shuffle(selected_files)
+
+    clips = [VideoFileClip(f) for f in selected_files]
+    final_clip = concatenate_videoclips(clips)
+    final_clip.write_videofile("output_zoomed2.mp4")
+
+if __name__ == "__main__":
+    if len(argv) < 2:
+        print("No input video specified.")
+        exit(1)
+
+    input_video = argv[1]
+    output_video_directory = "zoomed_videos"
+
+    create_zoomed_videos(input_video, output_video_directory)
+    join()
+```
+
+You can run this script using the command `python zoom_n_join.py <input_video_path>`, making sure to replace `<input_video_path>` with the actual path to your input video file. This script will process the input video, create a directory of zoomed videos from unique frames, and then join these videos into one final video.
+

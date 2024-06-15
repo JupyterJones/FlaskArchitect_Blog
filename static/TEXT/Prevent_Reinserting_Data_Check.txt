@@ -1,0 +1,1268 @@
+Prevent Reinserting Data Check
+user
+#!/home/jack/miniconda3/envs/cloned_base/bin/python
+import os
+from flask import Flask, render_template, request
+import datetime
+import sqlite3
+
+app = Flask(__name__)
+
+# Configure logging
+def logit(logdata):
+    timestr = datetime.datetime.now().strftime('%A_%b-%d-%Y')
+    with open("testlog2.txt", "a") as log_file:
+        log_file.write(f"{timestr}: {logdata} <br/>")
+    print("testlog2.txt entry:", logdata)
+
+logit("TEST: 12345 in testlog2.txt\n")
+
+# SQLite database setup
+DATABASE = 'functions.db'
+
+def create_db():
+    """Initialize the database."""
+    with sqlite3.connect(DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS functions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                function_text TEXT NOT NULL
+            )
+        ''')
+    logit(f"Database {DATABASE} initialized.")
+
+def read_functions():
+    """Read functions from the database."""
+    logit("Reading functions from database...")
+    with sqlite3.connect(DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT function_text FROM functions')
+        functions = [row[0] for row in cursor.fetchall()]
+    logit("Functions retrieved from database.")
+    return functions
+
+import traceback
+
+def insert_function(function_text):
+    """Insert a new function into the database."""
+    try:
+        logit("Inserting function into database...")
+        with sqlite3.connect(DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO functions (function_text) VALUES (?)', (function_text,))
+        logit("Function inserted into database.")
+    except Exception as e:
+        logit(f"Error inserting function: {e}")
+        traceback.print_exc()  # Print traceback for detailed error analysis
+
+# Initialize database on startup
+create_db()
+
+# Test the function
+functions = read_functions()
+
+@app.route('/')
+def index():
+    return render_template('index_code.html')
+
+@app.route('/save', methods=['POST'])
+def save():
+    code = request.form['code']
+    suggestions = generate_suggestions(code)
+    return {'suggestions': suggestions}
+
+def generate_suggestions(code):
+    logit("Generating suggestions...")
+    
+    # Retrieve the last line from the code
+    lines = code.split('\n')
+    last_line = lines[-1]
+
+    # Split the last line into words and get the last two words
+    words = last_line.split()
+    last_two_words = ' '.join(words[-2:])
+    
+    # Function to split snippet based on last_two_words and return completion
+    def split_snippet(snippet, last_two_words):
+        index = snippet.rfind(last_two_words)
+        if index != -1:
+            completion = snippet[index + len(last_two_words):].strip()
+            return completion
+        return snippet.strip()
+    
+    # Search for matching snippets based on the last two words
+    matching_snippets = []
+    found_indices = set()  # To store indices of found snippets to avoid duplicates
+    
+    for i, snippet in enumerate(functions, start=1):
+        if last_two_words in snippet:
+            # Check if the snippet has already been added
+            if i not in found_indices:
+                found_indices.add(i)
+                completion = split_snippet(snippet, last_two_words)
+                formatted_snippet = f"<pre>{i}: {completion}</pre>"
+                formatted_snippet = formatted_snippet[:150] + '...' if len(formatted_snippet) > 150 else formatted_snippet
+                matching_snippets.append(formatted_snippet)
+    
+    # Return up to 20 suggestions, limited to 5 for demonstration purposes
+    return matching_snippets[:5]
+  # Return a copy of the list
+
+@app.route('/save_code', methods=['POST'])
+def save_code():
+    code = request.data.decode('utf-8')
+
+    if code:
+        insert_function(code)
+        return 'Code saved successfully', 200
+    else:
+        return 'No code provided in the request', 400
+# Function to read 'use_to_Generate.txt' and insert into database
+def insert_functions():
+    try:
+        with open('use_to_Generate.txt', 'r', encoding='utf-8', errors='ignore') as file:
+            functions = file.readlines()
+        
+        with sqlite3.connect(DATABASE) as conn:
+            cursor = conn.cursor()
+            for function_text in functions:
+                segments = function_text.strip().split('.')
+                for segment in segments:
+                    cursor.execute('INSERT INTO functions (function_text) VALUES (?)', (segment,))
+        print("Functions inserted into database.")
+    except sqlite3.Error as e:
+        print(f"Error inserting functions into database: {e}")
+
+
+# Main function to create table, insert data, and run the app
+if __name__ == "__main__":
+    create_db()
+    insert_functions()
+    # Main function to run the app
+    print("Running Flask app on port 5500...")
+    app.run(debug=True, host='0.0.0.0', port=5500)
+-------------------- problem
+every time this run the data from use_to_Generate.txt is entered again
+ChatGPT
+To prevent the data from `use_to_Generate.txt` from being reinserted into the database every time the application runs, you can modify the `insert_functions` function to first check if the data already exists. This can be achieved by storing a flag in the database or by checking for the existence of specific entries that indicate the data has already been inserted.
+
+Here’s a revised version of your script that incorporates this check:
+
+```python
+#!/home/jack/miniconda3/envs/cloned_base/bin/python
+import os
+from flask import Flask, render_template, request
+import datetime
+import sqlite3
+
+app = Flask(__name__)
+
+# Configure logging
+def logit(logdata):
+    timestr = datetime.datetime.now().strftime('%A_%b-%d-%Y')
+    with open("testlog2.txt", "a") as log_file:
+        log_file.write(f"{timestr}: {logdata} <br/>")
+    print("testlog2.txt entry:", logdata)
+
+logit("TEST: 12345 in testlog2.txt\n")
+
+# SQLite database setup
+DATABASE = 'functions.db'
+
+def create_db():
+    """Initialize the database."""
+    with sqlite3.connect(DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS functions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                function_text TEXT NOT NULL
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS metadata (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT NOT NULL,
+                value TEXT NOT NULL
+            )
+        ''')
+    logit(f"Database {DATABASE} initialized.")
+
+def read_functions():
+    """Read functions from the database."""
+    logit("Reading functions from database...")
+    with sqlite3.connect(DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT function_text FROM functions')
+        functions = [row[0] for row in cursor.fetchall()]
+    logit("Functions retrieved from database.")
+    return functions
+
+import traceback
+
+def insert_function(function_text):
+    """Insert a new function into the database."""
+    try:
+        logit("Inserting function into database...")
+        with sqlite3.connect(DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO functions (function_text) VALUES (?)', (function_text,))
+        logit("Function inserted into database.")
+    except Exception as e:
+        logit(f"Error inserting function: {e}")
+        traceback.print_exc()  # Print traceback for detailed error analysis
+
+# Initialize database on startup
+create_db()
+
+# Test the function
+functions = read_functions()
+
+@app.route('/')
+def index():
+    return render_template('index_code.html')
+
+@app.route('/save', methods=['POST'])
+def save():
+    code = request.form['code']
+    suggestions = generate_suggestions(code)
+    return {'suggestions': suggestions}
+
+def generate_suggestions(code):
+    logit("Generating suggestions...")
+    
+    # Retrieve the last line from the code
+    lines = code.split('\n')
+    last_line = lines[-1]
+
+    # Split the last line into words and get the last two words
+    words = last_line.split()
+    last_two_words = ' '.join(words[-2:])
+    
+    # Function to split snippet based on last_two_words and return completion
+    def split_snippet(snippet, last_two_words):
+        index = snippet.rfind(last_two_words)
+        if index != -1:
+            completion = snippet[index + len(last_two_words):].strip()
+            return completion
+        return snippet.strip()
+    
+    # Search for matching snippets based on the last two words
+    matching_snippets = []
+    found_indices = set()  # To store indices of found snippets to avoid duplicates
+    
+    for i, snippet in enumerate(functions, start=1):
+        if last_two_words in snippet:
+            # Check if the snippet has already been added
+            if i not in found_indices:
+                found_indices.add(i)
+                completion = split_snippet(snippet, last_two_words)
+                formatted_snippet = f"<pre>{i}: {completion}</pre>"
+                formatted_snippet = formatted_snippet[:150] + '...' if len(formatted_snippet) > 150 else formatted_snippet
+                matching_snippets.append(formatted_snippet)
+    
+    # Return up to 20 suggestions, limited to 5 for demonstration purposes
+    return matching_snippets[:5]
+  # Return a copy of the list
+
+@app.route('/save_code', methods=['POST'])
+def save_code():
+    code = request.data.decode('utf-8')
+
+    if code:
+        insert_function(code)
+        return 'Code saved successfully', 200
+    else:
+        return 'No code provided in the request', 400
+
+# Function to read 'use_to_Generate.txt' and insert into database
+def insert_functions():
+    try:
+        with sqlite3.connect(DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM metadata WHERE key='initialized'")
+            result = cursor.fetchone()
+            
+            if result is None:
+                # Insert data from file since it's not initialized
+                with open('use_to_Generate.txt', 'r', encoding='utf-8', errors='ignore') as file:
+                    functions = file.readlines()
+                
+                for function_text in functions:
+                    segments = function_text.strip().split('.')
+                    for segment in segments:
+                        cursor.execute('INSERT INTO functions (function_text) VALUES (?)', (segment,))
+                
+                # Mark the data as initialized
+                cursor.execute("INSERT INTO metadata (key, value) VALUES ('initialized', 'true')")
+                print("Functions inserted into database.")
+            else:
+                print("Functions already inserted into database.")
+    except sqlite3.Error as e:
+        print(f"Error inserting functions into database: {e}")
+
+# Main function to create table, insert data, and run the app
+if __name__ == "__main__":
+    create_db()
+    insert_functions()
+    # Main function to run the app
+    print("Running Flask app on port 5500...")
+    app.run(debug=True, host='0.0.0.0', port=5500)
+```
+
+### Explanation:
+
+1. **Metadata Table:** A new table `metadata` is created to store metadata information, such as whether the initial data has been inserted.
+2. **Check for Initialization:** In the `insert_functions` function, before inserting the data from `use_to_Generate.txt`, the script checks the `metadata` table to see if the data has already been inserted. If not, it proceeds with the insertion and then updates the metadata to reflect that the data has been inserted.
+3. **Avoid Re-insertion:** On subsequent runs, if the metadata indicates that the data has been initialized, the script skips the insertion process.
+
+This approach ensures that `use_to_Generate.txt` is only read and inserted into the database the first time the application runs, preventing duplicate entries.
+user
+i need a function to read database and return the last line
+ChatGPT
+To create a function that reads from the database and returns the last line, you can use the `ORDER BY` clause in your SQL query to sort the entries by their primary key in descending order and limit the result to one entry. Here’s how you can implement such a function:
+
+```python
+def get_last_function():
+    """Retrieve the last function from the database."""
+    logit("Retrieving the last function from the database...")
+    try:
+        with sqlite3.connect(DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT function_text FROM functions ORDER BY id DESC LIMIT 1')
+            result = cursor.fetchone()
+            if result:
+                logit("Last function retrieved successfully.")
+                return result[0]
+            else:
+                logit("No functions found in the database.")
+                return None
+    except Exception as e:
+        logit(f"Error retrieving last function: {e}")
+        traceback.print_exc()  # Print traceback for detailed error analysis
+        return None
+
+# Example usage:
+last_function = get_last_function()
+if last_function:
+    print(f"Last function in the database: {last_function}")
+else:
+    print("No functions found in the database.")
+```
+
+### Explanation:
+
+1. **Function Definition:**
+   - `get_last_function`: This function connects to the database, retrieves the last function entry based on the primary key (`id`), and returns it.
+
+2. **SQL Query:**
+   - The query `SELECT function_text FROM functions ORDER BY id DESC LIMIT 1` sorts the entries by `id` in descending order and limits the result to one entry, effectively fetching the last inserted function.
+
+3. **Logging and Error Handling:**
+   - The function logs the process of retrieving the last function and handles any exceptions by logging the error and printing the traceback for detailed analysis.
+
+4. **Example Usage:**
+   - An example usage is provided to demonstrate how to call the `get_last_function` function and handle the result.
+
+You can integrate this function into your Flask app or use it as needed to retrieve the last function from the database.
+user
+do you know a dark custom.css theme for jupyter note books , must include header and the toolbar.
+ChatGPT
+Yes, you can customize Jupyter Notebook with a dark theme by using a custom CSS file. Here’s an example of a custom CSS file (`custom.css`) that you can use to apply a dark theme, including styling for the header and the toolbar.
+
+1. **Create a custom CSS file:**
+
+   Create a file named `custom.css` with the following content:
+
+```css
+/* Dark theme for Jupyter Notebook */
+
+/* General body styles */
+body, .container {
+    background-color: #1e1e1e;
+    color: #dcdcdc;
+}
+
+/* Header styles */
+div#header {
+    background-color: #333;
+    border-bottom: 1px solid #444;
+}
+
+div#header-container {
+    color: #dcdcdc;
+}
+
+/* Toolbar styles */
+div#menubar-container, div#maintoolbar-container {
+    background-color: #333;
+    border-bottom: 1px solid #444;
+}
+
+div#menubar .navbar-inner {
+    background-color: #333;
+}
+
+div#menubar .navbar .nav > li > a {
+    color: #dcdcdc;
+}
+
+div#maintoolbar .navbar-inner {
+    background-color: #333;
+}
+
+div#maintoolbar .navbar .nav > li > a {
+    color: #dcdcdc;
+}
+
+/* Notebook cell styles */
+div.cell {
+    border: 1px solid #444;
+    background-color: #2b2b2b;
+}
+
+div.input_area {
+    background-color: #2b2b2b;
+}
+
+textarea, .CodeMirror-lines {
+    background-color: #2b2b2b !important;
+    color: #dcdcdc !important;
+}
+
+.cm-s-default .cm-keyword {color: #569cd6;}
+.cm-s-default .cm-atom {color: #9cdcfe;}
+.cm-s-default .cm-number {color: #b5cea8;}
+.cm-s-default .cm-def {color: #dcdcaa;}
+.cm-s-default .cm-variable-2 {color: #9cdcfe;}
+.cm-s-default .cm-variable-3, .cm-s-default .cm-type {color: #4ec9b0;}
+.cm-s-default .cm-property {color: #9cdcfe;}
+.cm-s-default .cm-operator {color: #dcdcdc;}
+.cm-s-default .cm-comment {color: #6a9955;}
+.cm-s-default .cm-string {color: #ce9178;}
+.cm-s-default .cm-string-2 {color: #d7ba7d;}
+.cm-s-default .cm-meta {color: #dcdcdc;}
+.cm-s-default .cm-builtin {color: #c586c0;}
+.cm-s-default .cm-tag {color: #569cd6;}
+.cm-s-default .cm-attribute {color: #9cdcfe;}
+.cm-s-default .cm-qualifier {color: #4ec9b0;}
+.cm-s-default .cm-namespace {color: #4ec9b0;}
+.cm-s-default .cm-error {color: #f44747;}
+.cm-s-default .cm-operator {color: #dcdcdc;}
+
+/* Output styles */
+div.output_wrapper {
+    border-top: 1px solid #444;
+}
+
+div.output {
+    background-color: #2b2b2b;
+    color: #dcdcdc;
+}
+
+div.output_area pre {
+    color: #dcdcdc;
+}
+
+div.output_subarea {
+    background-color: #2b2b2b;
+    color: #dcdcdc;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: #2b2b2b;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #444;
+    border-radius: 6px;
+    border: 3px solid #2b2b2b;
+}
+
+/* Miscellaneous */
+div.text_cell_render {
+    color: #dcdcdc;
+}
+
+div#pager {
+    background-color: #333;
+}
+
+div#pager li.active a {
+    background-color: #444;
+    border-color: #444;
+}
+
+div#pager li.disabled a {
+    color: #666;
+}
+```
+
+2. **Locate or Create the Custom CSS Directory:**
+
+   Place this `custom.css` file in the Jupyter custom directory. The typical path for the custom directory is:
+
+   ```
+   ~/.jupyter/custom/
+   ```
+
+   If the `custom` directory doesn't exist, create it:
+
+   ```sh
+   mkdir -p ~/.jupyter/custom
+   ```
+
+3. **Apply the Custom CSS:**
+
+   Copy your `custom.css` file to the `custom` directory:
+
+   ```sh
+   cp /path/to/your/custom.css ~/.jupyter/custom/custom.css
+   ```
+
+4. **Restart Jupyter Notebook:**
+
+   Restart your Jupyter Notebook server to apply the changes. When you open a notebook, the custom dark theme should be applied.
+
+This custom CSS file changes the background colors, text colors, and other UI elements to create a dark theme that includes the header and the toolbar. You can further customize the CSS to suit your preferences.
+user
+does: span.cm-numder sound familiar ?
+ChatGPT
+It seems like there's a small typo in your question. If you meant `span.cm-number`, then yes, it is familiar. `span.cm-number` is a CSS class used in the CodeMirror library, which is the code editor component used by Jupyter Notebook. CodeMirror uses various CSS classes to style different parts of the code, such as keywords, numbers, strings, comments, etc.
+
+Here’s an updated snippet of the CSS file, including the correct class names:
+
+```css
+/* Dark theme for Jupyter Notebook */
+
+/* General body styles */
+body, .container {
+    background-color: #1e1e1e;
+    color: #dcdcdc;
+}
+
+/* Header styles */
+div#header {
+    background-color: #333;
+    border-bottom: 1px solid #444;
+}
+
+div#header-container {
+    color: #dcdcdc;
+}
+
+/* Toolbar styles */
+div#menubar-container, div#maintoolbar-container {
+    background-color: #333;
+    border-bottom: 1px solid #444;
+}
+
+div#menubar .navbar-inner {
+    background-color: #333;
+}
+
+div#menubar .navbar .nav > li > a {
+    color: #dcdcdc;
+}
+
+div#maintoolbar .navbar-inner {
+    background-color: #333;
+}
+
+div#maintoolbar .navbar .nav > li > a {
+    color: #dcdcdc;
+}
+
+/* Notebook cell styles */
+div.cell {
+    border: 1px solid #444;
+    background-color: #2b2b2b;
+}
+
+div.input_area {
+    background-color: #2b2b2b;
+}
+
+textarea, .CodeMirror-lines {
+    background-color: #2b2b2b !important;
+    color: #dcdcdc !important;
+}
+
+.cm-s-default .cm-keyword {color: #569cd6;}
+.cm-s-default .cm-atom {color: #9cdcfe;}
+.cm-s-default .cm-number {color: #b5cea8;}
+.cm-s-default .cm-def {color: #dcdcaa;}
+.cm-s-default .cm-variable-2 {color: #9cdcfe;}
+.cm-s-default .cm-variable-3, .cm-s-default .cm-type {color: #4ec9b0;}
+.cm-s-default .cm-property {color: #9cdcfe;}
+.cm-s-default .cm-operator {color: #dcdcdc;}
+.cm-s-default .cm-comment {color: #6a9955;}
+.cm-s-default .cm-string {color: #ce9178;}
+.cm-s-default .cm-string-2 {color: #d7ba7d;}
+.cm-s-default .cm-meta {color: #dcdcdc;}
+.cm-s-default .cm-builtin {color: #c586c0;}
+.cm-s-default .cm-tag {color: #569cd6;}
+.cm-s-default .cm-attribute {color: #9cdcfe;}
+.cm-s-default .cm-qualifier {color: #4ec9b0;}
+.cm-s-default .cm-namespace {color: #4ec9b0;}
+.cm-s-default .cm-error {color: #f44747;}
+.cm-s-default .cm-operator {color: #dcdcdc;}
+
+/* Output styles */
+div.output_wrapper {
+    border-top: 1px solid #444;
+}
+
+div.output {
+    background-color: #2b2b2b;
+    color: #dcdcdc;
+}
+
+div.output_area pre {
+    color: #dcdcdc;
+}
+
+div.output_subarea {
+    background-color: #2b2b2b;
+    color: #dcdcdc;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: #2b2b2b;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #444;
+    border-radius: 6px;
+    border: 3px solid #2b2b2b;
+}
+
+/* Miscellaneous */
+div.text_cell_render {
+    color: #dcdcdc;
+}
+
+div#pager {
+    background-color: #333;
+}
+
+div#pager li.active a {
+    background-color: #444;
+    border-color: #444;
+}
+
+div#pager li.disabled a {
+    color: #666;
+}
+```
+
+In this CSS, `.cm-s-default .cm-number` is the correct class to style numbers in CodeMirror. If you see `span.cm-number` in the HTML, it is because CodeMirror uses `<span>` elements with the corresponding classes to apply syntax highlighting.
+user
+span.cm-number is much to dark a green and unreadable
+ChatGPT
+To improve the readability of the `.cm-number` class in your dark theme, you can adjust the color to a lighter shade of green or another color that contrasts well with the dark background. Here's an example of how you can update the color for `.cm-number`:
+
+```css
+/* Dark theme for Jupyter Notebook */
+
+/* General body styles */
+body, .container {
+    background-color: #1e1e1e;
+    color: #dcdcdc;
+}
+
+/* Header styles */
+div#header {
+    background-color: #333;
+    border-bottom: 1px solid #444;
+}
+
+div#header-container {
+    color: #dcdcdc;
+}
+
+/* Toolbar styles */
+div#menubar-container, div#maintoolbar-container {
+    background-color: #333;
+    border-bottom: 1px solid #444;
+}
+
+div#menubar .navbar-inner {
+    background-color: #333;
+}
+
+div#menubar .navbar .nav > li > a {
+    color: #dcdcdc;
+}
+
+div#maintoolbar .navbar-inner {
+    background-color: #333;
+}
+
+div#maintoolbar .navbar .nav > li > a {
+    color: #dcdcdc;
+}
+
+/* Notebook cell styles */
+div.cell {
+    border: 1px solid #444;
+    background-color: #2b2b2b;
+}
+
+div.input_area {
+    background-color: #2b2b2b;
+}
+
+textarea, .CodeMirror-lines {
+    background-color: #2b2b2b !important;
+    color: #dcdcdc !important;
+}
+
+.cm-s-default .cm-keyword {color: #569cd6;}
+.cm-s-default .cm-atom {color: #9cdcfe;}
+.cm-s-default .cm-number {color: #b5cea8;}  /* Lighten the number color */
+.cm-s-default .cm-def {color: #dcdcaa;}
+.cm-s-default .cm-variable-2 {color: #9cdcfe;}
+.cm-s-default .cm-variable-3, .cm-s-default .cm-type {color: #4ec9b0;}
+.cm-s-default .cm-property {color: #9cdcfe;}
+.cm-s-default .cm-operator {color: #dcdcdc;}
+.cm-s-default .cm-comment {color: #6a9955;}
+.cm-s-default .cm-string {color: #ce9178;}
+.cm-s-default .cm-string-2 {color: #d7ba7d;}
+.cm-s-default .cm-meta {color: #dcdcdc;}
+.cm-s-default .cm-builtin {color: #c586c0;}
+.cm-s-default .cm-tag {color: #569cd6;}
+.cm-s-default .cm-attribute {color: #9cdcfe;}
+.cm-s-default .cm-qualifier {color: #4ec9b0;}
+.cm-s-default .cm-namespace {color: #4ec9b0;}
+.cm-s-default .cm-error {color: #f44747;}
+.cm-s-default .cm-operator {color: #dcdcdc;}
+
+/* Output styles */
+div.output_wrapper {
+    border-top: 1px solid #444;
+}
+
+div.output {
+    background-color: #2b2b2b;
+    color: #dcdcdc;
+}
+
+div.output_area pre {
+    color: #dcdcdc;
+}
+
+div.output_subarea {
+    background-color: #2b2b2b;
+    color: #dcdcdc;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: #2b2b2b;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #444;
+    border-radius: 6px;
+    border: 3px solid #2b2b2b;
+}
+
+/* Miscellaneous */
+div.text_cell_render {
+    color: #dcdcdc;
+}
+
+div#pager {
+    background-color: #333;
+}
+
+div#pager li.active a {
+    background-color: #444;
+    border-color: #444;
+}
+
+div#pager li.disabled a {
+    color: #666;
+}
+```
+
+In this updated CSS, the `.cm-number` color has been changed to a lighter shade of green (`#b5cea8`), making it more readable against the dark background. You can adjust the color further to fit your preferences.
+
+If you want to experiment with different colors, you can use color picker tools or websites like [Coolors](https://coolors.co/) to find colors that match well with your theme.
+user
+/* Dark theme for Jupyter Notebook */
+
+/* General body styles */
+body, .container {
+    background-color: #1e1e1e;
+    color: #dcdcdc;
+}
+
+/* Header styles */
+div#header {
+    background-color: #333;
+    border-bottom: 1px solid #444;
+}
+
+div#header-container {
+    color: #dcdcdc;
+}
+
+/* Toolbar styles */
+div#menubar-container, div#maintoolbar-container {
+    background-color: #333;
+    border-bottom: 1px solid #444;
+}
+
+div#menubar .navbar-inner {
+    background-color: #333;
+}
+
+div#menubar .navbar .nav > li > a {
+    color: #dcdcdc;
+}
+
+div#maintoolbar .navbar-inner {
+    background-color: #333;
+}
+
+div#maintoolbar .navbar .nav > li > a {
+    color: #dcdcdc;
+}
+
+/* Notebook cell styles */
+div.cell {
+    border: 1px solid #444;
+    background-color: #2b2b2b;
+}
+
+div.input_area {
+    background-color: #2b2b2b;
+}
+
+textarea, .CodeMirror-lines {
+    background-color: #2b2b2b !important;
+    color: #dcdcdc !important;
+}
+
+.cm-s-default .cm-keyword {color: #569cd6;}
+.cm-s-default .cm-atom {color: #9cdcfe;}
+.cm-s-default .cm-number {color: #ffffff;} /* Lighten the number color */
+.cm-s-default .cm-def {color: #dcdcaa;}
+.cm-s-default .cm-variable-2 {color: #9cdcfe;}
+.cm-s-default .cm-variable-3, .cm-s-default .cm-type {color: #4ec9b0;}
+.cm-s-default .cm-property {color: #9cdcfe;}
+.cm-s-default .cm-operator {color: #dcdcdc;}
+.cm-s-default .cm-comment {color: #6a9955;}
+.cm-s-default .cm-string {color: #ce9178;}
+.cm-s-default .cm-string-2 {color: #d7ba7d;}
+.cm-s-default .cm-meta {color: #dcdcdc;}
+.cm-s-default .cm-builtin {color: #c586c0;}
+.cm-s-default .cm-tag {color: #569cd6;}
+.cm-s-default .cm-attribute {color: #9cdcfe;}
+.cm-s-default .cm-qualifier {color: #4ec9b0;}
+.cm-s-default .cm-namespace {color: #4ec9b0;}
+.cm-s-default .cm-error {color: #f44747;}
+.cm-s-default .cm-operator {color: #dcdcdc;}
+
+/* Output styles */
+div.output_wrapper {
+    border-top: 1px solid #444;
+}
+
+div.output {
+    background-color: #2b2b2b;
+    color: #dcdcdc;
+}
+
+div.output_area pre {
+    color: #dcdcdc;
+}
+
+div.output_subarea {
+    background-color: #2b2b2b;
+    color: #dcdcdc;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: #2b2b2b;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #444;
+    border-radius: 6px;
+    border: 3px solid #2b2b2b;
+}
+
+/* Miscellaneous */
+div.text_cell_render {
+    color: #dcdcdc;
+}
+
+div#pager {
+    background-color: #333;
+}
+
+div#pager li.active a {
+    background-color: #444;
+    border-color: #444;
+}
+
+div#pager li.disabled a {
+    color: #666;
+}
+
+div#notebook {
+    background-color: gray;
+}
+div.navbar-collapse.collapse {
+    background-color: #333;
+}
+div#notebook-container.container {
+    background-color: #a09a9a;
+}
+
+pre.CodeMirror-lines {
+    background-color: #2b2b2b;
+}
+now the cm-number is black I cant see it ? why
+ChatGPT
+It looks like the issue is with the way colors are being applied in your CSS. The `cm-number` class was set to `#ffffff` (white) previously, but now it appears to be black. This could be due to conflicting styles or overwrites from other CSS rules. 
+
+Here’s a slightly revised version of your CSS to ensure the `cm-number` class is correctly styled and stands out:
+
+```css
+/* Dark theme for Jupyter Notebook */
+
+/* General body styles */
+body, .container {
+    background-color: #1e1e1e;
+    color: #dcdcdc;
+}
+
+/* Header styles */
+div#header {
+    background-color: #333;
+    border-bottom: 1px solid #444;
+}
+
+div#header-container {
+    color: #dcdcdc;
+}
+
+/* Toolbar styles */
+div#menubar-container, div#maintoolbar-container {
+    background-color: #333;
+    border-bottom: 1px solid #444;
+}
+
+div#menubar .navbar-inner {
+    background-color: #333;
+}
+
+div#menubar .navbar .nav > li > a {
+    color: #dcdcdc;
+}
+
+div#maintoolbar .navbar-inner {
+    background-color: #333;
+}
+
+div#maintoolbar .navbar .nav > li > a {
+    color: #dcdcdc;
+}
+
+/* Notebook cell styles */
+div.cell {
+    border: 1px solid #444;
+    background-color: #2b2b2b;
+}
+
+div.input_area {
+    background-color: #2b2b2b;
+}
+
+textarea, .CodeMirror-lines {
+    background-color: #2b2b2b !important;
+    color: #dcdcdc !important;
+}
+
+.cm-s-default .cm-keyword {color: #569cd6;}
+.cm-s-default .cm-atom {color: #9cdcfe;}
+.cm-s-default .cm-number {color: #b5cea8;} /* Lighten the number color */
+.cm-s-default .cm-def {color: #dcdcaa;}
+.cm-s-default .cm-variable-2 {color: #9cdcfe;}
+.cm-s-default .cm-variable-3, .cm-s-default .cm-type {color: #4ec9b0;}
+.cm-s-default .cm-property {color: #9cdcfe;}
+.cm-s-default .cm-operator {color: #dcdcdc;}
+.cm-s-default .cm-comment {color: #6a9955;}
+.cm-s-default .cm-string {color: #ce9178;}
+.cm-s-default .cm-string-2 {color: #d7ba7d;}
+.cm-s-default .cm-meta {color: #dcdcdc;}
+.cm-s-default .cm-builtin {color: #c586c0;}
+.cm-s-default .cm-tag {color: #569cd6;}
+.cm-s-default .cm-attribute {color: #9cdcfe;}
+.cm-s-default .cm-qualifier {color: #4ec9b0;}
+.cm-s-default .cm-namespace {color: #4ec9b0;}
+.cm-s-default .cm-error {color: #f44747;}
+.cm-s-default .cm-operator {color: #dcdcdc;}
+
+/* Output styles */
+div.output_wrapper {
+    border-top: 1px solid #444;
+}
+
+div.output {
+    background-color: #2b2b2b;
+    color: #dcdcdc;
+}
+
+div.output_area pre {
+    color: #dcdcdc;
+}
+
+div.output_subarea {
+    background-color: #2b2b2b;
+    color: #dcdcdc;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: #2b2b2b;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #444;
+    border-radius: 6px;
+    border: 3px solid #2b2b2b;
+}
+
+/* Miscellaneous */
+div.text_cell_render {
+    color: #dcdcdc;
+}
+
+div#pager {
+    background-color: #333;
+}
+
+div#pager li.active a {
+    background-color: #444;
+    border-color: #444;
+}
+
+div#pager li.disabled a {
+    color: #666;
+}
+
+div#notebook {
+    background-color: gray;
+}
+
+div.navbar-collapse.collapse {
+    background-color: #333;
+}
+
+div#notebook-container.container {
+    background-color: #a09a9a;
+}
+
+pre.CodeMirror-lines {
+    background-color: #2b2b2b;
+}
+```
+
+Here are a few points to ensure:
+
+1. Ensure that no other CSS rules are overriding your `.cm-number` class. This includes inline styles, other CSS files, or browser extensions.
+2. Make sure the CSS file is correctly linked and loaded in your Jupyter Notebook.
+3. Clear your browser cache to ensure the latest CSS is being applied.
+user
+that just isn't working, I even changed browsers. there is no contrast do you have any other css themes . the default is blinding white
+ChatGPT
+Certainly! Here is an alternative dark theme for Jupyter Notebook that you can use. This theme will ensure good contrast and readability for all elements, including numbers. The color scheme is inspired by popular dark themes used in code editors.
+
+```css
+/* Dark theme for Jupyter Notebook */
+
+/* General body styles */
+body, .container {
+    background-color: #2e2e2e;
+    color: #dcdcdc;
+}
+
+/* Header styles */
+div#header {
+    background-color: #3c3c3c;
+    border-bottom: 1px solid #4d4d4d;
+}
+
+div#header-container {
+    color: #dcdcdc;
+}
+
+/* Toolbar styles */
+div#menubar-container, div#maintoolbar-container {
+    background-color: #3c3c3c;
+    border-bottom: 1px solid #4d4d4d;
+}
+
+div#menubar .navbar-inner {
+    background-color: #3c3c3c;
+}
+
+div#menubar .navbar .nav > li > a {
+    color: #dcdcdc;
+}
+
+div#maintoolbar .navbar-inner {
+    background-color: #3c3c3c;
+}
+
+div#maintoolbar .navbar .nav > li > a {
+    color: #dcdcdc;
+}
+
+/* Notebook cell styles */
+div.cell {
+    border: 1px solid #4d4d4d;
+    background-color: #2b2b2b;
+}
+
+div.input_area {
+    background-color: #2b2b2b;
+}
+
+textarea, .CodeMirror-lines {
+    background-color: #2b2b2b !important;
+    color: #dcdcdc !important;
+}
+
+.cm-s-default .cm-keyword {color: #569cd6;}
+.cm-s-default .cm-atom {color: #9cdcfe;}
+.cm-s-default .cm-number {color: #b5cea8;} /* Lighten the number color */
+.cm-s-default .cm-def {color: #dcdcaa;}
+.cm-s-default .cm-variable-2 {color: #9cdcfe;}
+.cm-s-default .cm-variable-3, .cm-s-default .cm-type {color: #4ec9b0;}
+.cm-s-default .cm-property {color: #9cdcfe;}
+.cm-s-default .cm-operator {color: #dcdcdc;}
+.cm-s-default .cm-comment {color: #6a9955;}
+.cm-s-default .cm-string {color: #ce9178;}
+.cm-s-default .cm-string-2 {color: #d7ba7d;}
+.cm-s-default .cm-meta {color: #dcdcdc;}
+.cm-s-default .cm-builtin {color: #c586c0;}
+.cm-s-default .cm-tag {color: #569cd6;}
+.cm-s-default .cm-attribute {color: #9cdcfe;}
+.cm-s-default .cm-qualifier {color: #4ec9b0;}
+.cm-s-default .cm-namespace {color: #4ec9b0;}
+.cm-s-default .cm-error {color: #f44747;}
+.cm-s-default .cm-operator {color: #dcdcdc;}
+
+/* Output styles */
+div.output_wrapper {
+    border-top: 1px solid #4d4d4d;
+}
+
+div.output {
+    background-color: #2b2b2b;
+    color: #dcdcdc;
+}
+
+div.output_area pre {
+    color: #dcdcdc;
+}
+
+div.output_subarea {
+    background-color: #2b2b2b;
+    color: #dcdcdc;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: #2b2b2b;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #444;
+    border-radius: 6px;
+    border: 3px solid #2b2b2b;
+}
+
+/* Miscellaneous */
+div.text_cell_render {
+    color: #dcdcdc;
+}
+
+div#pager {
+    background-color: #3c3c3c;
+}
+
+div#pager li.active a {
+    background-color: #4d4d4d;
+    border-color: #4d4d4d;
+}
+
+div#pager li.disabled a {
+    color: #666;
+}
+
+div#notebook {
+    background-color: gray;
+}
+
+div.navbar-collapse.collapse {
+    background-color: #3c3c3c;
+}
+
+div#notebook-container.container {
+    background-color: #2e2e2e;
+}
+
+pre.CodeMirror-lines {
+    background-color: #2b2b2b;
+}
+```
+
+To use this theme, follow these steps:
+
+1. Create a new file named `custom.css`.
+2. Copy and paste the above CSS code into `custom.css`.
+3. Save the file in the Jupyter Notebook custom CSS directory:
+   ```
+   ~/.jupyter/custom/
+   ```
+   (Create the `custom` directory if it doesn't already exist.)
+
+4. Restart your Jupyter Notebook server to apply the new theme.
+
+This theme should provide a good balance between readability and aesthetics, making your coding experience in Jupyter Notebook more comfortable in a dark environment.
+

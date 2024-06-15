@@ -1,0 +1,181 @@
+File Content Loading Issue
+user
+@app.route('/search_files', methods=['GET', 'POST'])
+def search_files():
+    if request.method == 'POST':
+        directory_path = "/static/output_txt_html_json"  # Replace with your actual path
+        search_terms_input = request.form['search_terms']
+        logit(f"Received search terms from the form: {search_terms_input}")
+
+        # Add logging to see the result of the search_text_files function
+        result = search_text_files(directory_path, search_terms_input)
+        logit(f"Search result: {result}")
+
+        return render_template('view_list.html', search_terms=search_terms_input, files=result)
+    #return render_template('search_files.html', search_terms='', files=[])
+    return render_template('search_files.html', search_terms='', files=[])
+I AM TRYING TO SEND files=result to this file
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Edit a Text File</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 1%;
+            height: 100%;
+            font-family: Arial, sans-serif;
+            background-image: url('../static/assets/01-back.jpg');
+            background-repeat: repeat-y;
+            background-size: cover;
+            /* Use 'cover' to make the image cover the entire body */
+            background-position: top;
+        }
+
+        .wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 10vh;
+        }
+
+        .header {
+            width: 100%;
+            padding: 20px;
+            text-align: center;
+        }
+        #logo {
+      position: absolute;
+      /* Position the logo absolutely */
+      top: 5vw;
+      /* Adjust the top distance as needed */
+      left: 2vw;
+      /* Adjust the left distance as needed */
+      max-width: 10vw;
+      /* Set a maximum width for the logo */
+      max-height: 15vw;
+      /* Set a maximum height for the logo */
+  }
+    </style>
+ 
+</head>
+
+<body>
+    <script>
+        // Fetches the file content and updates the textarea
+        function loadFileContent() {
+            var select = document.getElementById("filename-select");
+            var textarea = document.getElementById("file-content");
+            var selectedFile = select.value;
+
+            if (selectedFile) {
+                fetch(`/get_file_content/${selectedFile}`)
+                    .then(response => response.text())
+                    .then(content => {
+                        textarea.value = content;
+                    })
+                    .catch(error => {
+                        console.error('Error fetching file content:', error);
+                    });
+            } else {
+                textarea.value = "";
+            }
+        }
+
+        // Call the function initially to load content for the selected file
+        loadFileContent();
+    </script>
+    <div class="wrapper"><a href="{{ url_for('view_text') }}"><img id="logo" src="../static/assets/channels4_profile.png" alt="logo"/> </a><br/>
+
+        <a href="{{ url_for('search_files') }}"><img id="logo" src="../static/assets/search.png" alt="logo"/> </a>
+
+        <form method="POST" action="/edit_file">
+            <select id="filename-select" name="filename" onchange="loadFileContent()">
+                {% for filename in files %}
+                <option value="{{ filename }}">{{ filename }}</option>
+                {% endfor %}
+            </select>
+            <br><br>
+            <textarea id="file-content" name="text" rows="20" cols="80"></textarea>
+            <br><br>
+            <input type="submit" value="Save Changes">
+        </form>
+    </div>
+</body>
+
+</html>
+it is sending, i see the files in the list, but when i click the filename it does not load in the textarea
+ChatGPT
+It seems like the issue might be related to the JavaScript function `loadFileContent()` not working as expected. Let's make sure the function is correctly fetching the file content and updating the textarea. Also, let's add some logging to help diagnose the issue. Here's the modified Python code for your Flask route:
+
+```python
+import os  # Add this import at the beginning of your script
+
+@app.route('/search_files', methods=['GET', 'POST'])
+def search_files():
+    if request.method == 'POST':
+        directory_path = "/static/output_txt_html_json"  # Replace with your actual path
+        search_terms_input = request.form['search_terms']
+        logit(f"Received search terms from the form: {search_terms_input}")
+
+        # Add logging to see the result of the search_text_files function
+        result = search_text_files(directory_path, search_terms_input)
+        logit(f"Search result: {result}")
+
+        return render_template('view_list.html', search_terms=search_terms_input, files=result)
+    return render_template('search_files.html', search_terms='', files=[])
+
+@app.route('/get_file_content/<filename>')  # Add this route to fetch file content
+def get_file_content(filename):
+    file_path = os.path.join("/static/output_txt_html_json", filename)
+    logit(f"Fetching content for file: {file_path}")
+
+    try:
+        with open(file_path, 'r') as file:
+            content = file.read()
+        logit(f"File content fetched successfully")
+        return content
+    except Exception as e:
+        logit(f"Error fetching file content: {e}")
+        return "Error fetching file content"
+```
+
+Now, let's update your HTML file to ensure that the `fetch` call is pointing to the correct route:
+
+```html
+<!-- ... (your existing HTML code) ... -->
+
+<script>
+    // Fetches the file content and updates the textarea
+    function loadFileContent() {
+        var select = document.getElementById("filename-select");
+        var textarea = document.getElementById("file-content");
+        var selectedFile = select.value;
+
+        if (selectedFile) {
+            fetch(`/get_file_content/${selectedFile}`)
+                .then(response => response.text())
+                .then(content => {
+                    textarea.value = content;
+                    console.log('File content loaded successfully:', content);  // Add logging
+                })
+                .catch(error => {
+                    console.error('Error fetching file content:', error);
+                });
+        } else {
+            textarea.value = "";
+        }
+    }
+
+    // Call the function initially to load content for the selected file
+    loadFileContent();
+</script>
+
+<!-- ... (rest of your HTML code) ... -->
+```
+
+These changes should help you diagnose the issue and ensure that the file content is properly loaded into the textarea. If the problem persists, check the browser console for any errors and let me know the details.
+

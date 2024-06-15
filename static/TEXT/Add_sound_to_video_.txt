@@ -1,0 +1,69 @@
+Add sound to video.
+user
+i want to add sound.mp3                                                                                                   ffmpeg -i vids/black.mkv -filter_complex "[0]split[txt][orig];[txt]drawtext=fontfile=/usr/share/fonts/truetype/tlwg/Garuda-Bold.ttf:fontsize=26:fontcolor=red:x=(w-text_w)/2+20:y=h-20*t:text=\
+'1900 OR THE LAST PRESIDENT 
+BY INGERSOLL LOCKWOOD
+Copyright, 1896, by Ikgersoll Lockwood. 
+their men.' \
+:bordercolor=black:borderw=2[txt];[orig]crop=iw:50:0:0[orig];[txt][orig]overlay" \
+-c:v libx264 -y -preset ultrafast vids/best-scroll.mkv
+ChatGPT
+To add sound to the video, you can use the "-i" flag followed by the path to the audio file, and the "-shortest" flag to make sure the output video is the same length as the audio. Here's an example command:
+
+```
+ffmpeg -i vids/black.mkv -i sound.mp3 -filter_complex "[0]split[txt][orig];[txt]drawtext=fontfile=/usr/share/fonts/truetype/tlwg/Garuda-Bold.ttf:fontsize=26:fontcolor=red:x=(w-text_w)/2+20:y=h-20*t:text=\
+'1900 OR THE LAST PRESIDENT 
+BY INGERSOLL LOCKWOOD
+Copyright, 1896, by Ikgersoll Lockwood. 
+their men.' \
+:bordercolor=black:borderw=2[txt];[orig]crop=iw:50:0:0[orig];[txt][orig]overlay" \
+-c:v libx264 -c:a copy -shortest -y -preset ultrafast vids/best-scroll.mkv
+```
+
+In this example, I've added the "-i sound.mp3" flag to specify the audio file, and the "-c:a copy" flag to tell ffmpeg to copy the audio stream without re-encoding it. The "-shortest" flag ensures that the output video will be the same length as the audio.
+user
+ffmpeg -i vids
+ewyork.mp4 -i BGG_1806691680918732.mp3 -filter_complex "[0]split[txt][orig];[txt]drawtext=fontfile=/usr/share/fonts/truetype/tlwg/Garuda-Bold.ttf:fontsize=30:fontcolor=red:x=(w-text_w)/2+20:y=h-20*t:text=\
+'1900 OR THE LAST PRESIDENT     how do i start the text scroll at half page instead of the bottom
+ChatGPT
+To start the text scroll at half of the page instead of the bottom, you can adjust the `y` coordinate of the `drawtext` filter. Here's an example command:
+
+```
+ffmpeg -i vids
+ewyork.mp4 -i BGG_1806691680918732.mp3 -filter_complex "[0]split[txt][orig];[txt]drawtext=fontfile=/usr/share/fonts/truetype/tlwg/Garuda-Bold.ttf:fontsize=30:fontcolor=red:x=(w-text_w)/2+20:y=h/2-th-20*t:text='1900 OR THE LAST PRESIDENT';[orig]crop=iw:50:0:0[orig];[txt][orig]overlay" -c:v libx264 -c:a copy -shortest -preset ultrafast -y vids
+ewyork_scroll.mp4
+```
+
+In this example, I've changed the `y` coordinate in the `drawtext` filter to `y=h/2-th-20*t`, which positions the text at half of the page height minus the text height times the scroll position `t`. You may need to adjust the value `20` to suit your needs.
+user
+image slide show blend images  as a transition FFmpeg
+ChatGPT
+You can use the `blend` filter in FFmpeg to create a slide show with blended transitions between images. Here's an example command:
+
+```
+ffmpeg -framerate 1/5 -i image%03d.jpg -filter_complex "blend=all_expr='A*(if(gte(T,0.5),1,T*2))+B*(1-(if(gte(T,0.5),1,T*2)))'" -preset ultrafast -y output.mp4
+```
+
+In this example, the input images are named `image001.jpg`, `image002.jpg`, and so on, and have a frame rate of 1/5 frames per second. The `blend` filter combines the current frame (`A`) with the next frame (`B`) using an expression that gradually fades out the current frame and fades in the next frame over the course of half a second (the `T` variable represents the current time in seconds).
+
+You can adjust the frame rate (`-framerate`) and the blend expression (`blend=all_expr='...'`) to suit your needs. For example, you can change the fade duration by adjusting the value `0.5` in the expression, or use a different blending function altogether.
+user
+Cannot find a matching stream for unlabeled input pad 1 on filter Parsed_blend_0
+
+ChatGPT
+The error message "Cannot find a matching stream for unlabeled input pad 1 on filter" occurs when FFmpeg is unable to match an input stream to an output stream for a particular filter. In this case, it seems that the `blend` filter is not receiving the expected input.
+
+To resolve this issue, you can check the filtergraph and make sure that the input and output streams are properly connected. The input stream(s) should be labeled using the `[label]` syntax, and the output stream(s) should be connected to the appropriate input(s) of the next filter in the chain.
+
+Here's an example command that demonstrates how to label the input stream and connect it to the `blend` filter:
+
+```
+ffmpeg -i input1.mp4 -i input2.mp4 -filter_complex "[0:v]format=yuva420p,fade=t=in:st=0:d=1[v0];[1:v]format=yuva420p,fade=t=out:st=2:d=1[v1];[v0][v1]overlay[bg];[bg][1:v]blend=all_expr='A*(if(gte(T,0.5),1,T*2))+B*(1-(if(gte(T,0.5),1,T*2)))'" -c:v libx264 -preset ultrafast -y output.mp4
+```
+
+In this example, we have two input videos (`input1.mp4` and `input2.mp4`) that are being processed by a filtergraph. The `[0:v]` and `[1:v]` labels are used to identify the video streams from the first and second inputs, respectively.
+
+We then apply a `fade` filter to the first input (`[0:v]`) to fade it in over the first second, and to the second input (`[1:v]`) to fade it out over the third second. The `format=yuva420p` option is used to ensure that the input videos have an alpha channel, which is required for the `blend` filter to work.
+
+We then overlay the faded first input and the faded second input using the `overlay` filter, and pass the result to the `blend` filter with the label `[bg]`. Finally, we connect the `blend` filter output to the output video stream.
+
