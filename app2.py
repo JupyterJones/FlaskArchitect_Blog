@@ -5,7 +5,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, sen
 import sqlite3
 import datetime
 from werkzeug.utils import secure_filename
-
+import glob
 app = Flask(__name__)
 app.static_folder = 'static'  # Set the static folder to 'static'
 app.config['SECRET_KEY'] = 'your_secret_key'
@@ -90,7 +90,7 @@ def post(post_id):
 def get_post(post_id):
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
-        cursor.execute('SELECT id, title, content, image, video_filename FROM post WHERE id = ?', (post_id,))
+        cursor.execute('SELECT id, title, content, image, video_filename FROM post WHERE id = ? ORDER BY id DESC', (post_id,))
         post = cursor.fetchone()
     return post
 # Function to fetch all posts
@@ -188,7 +188,7 @@ def load_txt_files(directory):
                 with open(filepath, 'r', encoding='utf-8') as file:
                     title = os.path.splitext(filename)[0]
                     content = file.read()
-                    cursor.execute('SELECT id FROM post WHERE title = ?', (title,))
+                    cursor.execute('SELECT id FROM post WHERE title = ? ORDER BY id DESC', (title,))
                     existing_post = cursor.fetchone()
                     if not existing_post:
                         cursor.execute('INSERT INTO post (title, content) VALUES (?, ?)', (title, content))
@@ -272,7 +272,7 @@ def show_post(post_id):
 
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
-        cursor.execute('SELECT id, title, content, image, video_filename FROM post WHERE id = ?', (post_id,))
+        cursor.execute('SELECT id, title, content, image, video_filename FROM post WHERE id = ? ORDER BY id DESC', (post_id,))
         post = cursor.fetchone()
         if not post:
             flash('Post not found')
@@ -291,7 +291,157 @@ def view_image(post_id):
     else:
         return "No image found", 404
 
+TEXT_FILES_DIR = "static/TEXT" 
+# Index route to display existing text files and create new ones
+@app.route("/edit_text", methods=["GET", "POST"])
+def edit_text():
+
+    if request.method == "POST":
+        filename = request.form["filename"]
+        text = request.form["text"]
+        save_text_to_file(filename, text)
+        return redirect(url_for("edit_text"))
+    else:
+        # Path to the file containing list of file paths
+        text_files = os.listdir(TEXT_FILES_DIR)
+        text_directory='static/TEXT'
+        files = sorted(text_files, key=lambda x: os.path.getmtime(os.path.join(text_directory, x)), reverse=True)
+        #files=glob.glob('static/TEXT/*.txt')
+        logit(f'files 1: {files}')  
+        # Call the function to list files by creation time
+        #files = list_files_by_creation_time(files)
+        logit(f'files 2: {files}')
+        return render_template("edit_text.html", files=files)
+ # Route to edit a text file
+@app.route("/edit/<filename>", methods=["GET", "POST"])
+def edit(filename):
+    if request.method == "POST":
+        text = request.form["text"]
+        save_text_to_file(filename, text)
+        return redirect(url_for("index"))
+    else:
+        text = read_text_from_file(filename)
+        return render_template("edit.html", filename=filename, text=text)
+# Route to delete a text file
+@app.route("/delete/<filename>")
+def delete(filename):
+    filepath = os.path.join(TEXT_FILES_DIR, filename)
+    if os.path.exists(filepath):
+        os.remove(filepath)
+        logit(f"File deleted: {filename}")
+    return redirect(url_for("index"))
+
+
+def list_files_by_creation_time(file_paths):
+    """
+    List files by their creation time, oldest first.
+    
+    Args:
+    file_paths (list): List of file paths.
+    
+    Returns:
+    list: List of file paths sorted by creation time.
+    """
+    # Log the start of the function
+    logit('Listing files by creation time...')
+    
+    # Create a dictionary to store file paths and their creation times
+    file_creation_times = {}
+    
+    # Iterate through each file path
+    for file_path in file_paths:
+        # Get the creation time of the file
+        try:
+            creation_time = os.path.getctime(file_path)
+            # Store the file path and its creation time in the dictionary
+            file_creation_times[file_path] = creation_time
+        except FileNotFoundError:
+            # Log a warning if the file is not found
+            logit(f'File not found: {file_path}')
+    
+    # Sort the dictionary by creation time
+    sorted_files = sorted(file_creation_times.items(), key=lambda x: x[1])
+    
+    # Extract the file paths from the sorted list
+    sorted_file_paths = [file_path for file_path, _ in sorted_files]
+    
+    # Log the end of the function
+    logit('File listing complete.')
+    
+    # Return the sorted file paths
+    return sorted_file_paths
+def read_text_from_file(filename):
+    filepath = os.path.join(TEXT_FILES_DIR, filename)
+    with open(filepath, "r") as file:
+        text = file.read()
+        logit(f"Text read from file: {filename}")
+        return text
+        
+@app.route('/generate', methods=['POST'])
+def generate_text():
+    input_text = request.form['input_text']
+    generated_text = generate_text_with_model(input_text)
+    logit(f"Generated text: {generated_text}")
+    return jsonify({'generated_text': generated_text})
+
+def generate_text_with_model(input_text):
+    tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    model = AutoModelForCausalLM.from_pretrained("gpt2")
+    tokenizer.pad_token = tokenizer.eos_token
+    inputs = tokenizer(input_text, return_tensors="pt")
+    input_ids = inputs["input_ids"]
+    
+    sample_output = model.generate(
+        input_ids, 
+        max_length=500, 
+        temperature=0.8, 
+        top_p=0.9, 
+        do_sample=True,
+        pad_token_id=tokenizer.pad_token_id
+    )
+    
+    generated_text = tokenizer.decode(sample_output[0], skip_special_tokens=True)
+    return generated_text
+
+@app.route('/ask', methods=['GET', 'POST'])
+def ask():
+    return html_content
+
+html_content = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPT-2 Text Generation</title>
+    <link rel="stylesheet" href="static/dark.css">
+</head>
+<body>
+    <h1>GPT-2 Text Generation</h1>
+    <form id="inputForm">
+        <label for="input_text">Enter Input Text:</label><br>
+        <textarea id="input_text" name="input_text" rows="4" cols="50"></textarea><br>
+        <input type="submit" value="Generate Text">
+    </form>
+    <pre id="generated_text"></pre>
+    <script>
+        document.getElementById('inputForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            const response = await fetch('/generate', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            document.getElementById('generated_text').innerHTML = '<h2>Generated Text:</h2>' + data.generated_text;
+        });
+    </script>
+</body>
+</html>
+"""
+       
+        
 if __name__ == '__main__':
     directory = 'static/TEXT'
     load_txt_files(directory)
-    app.run(debug=True)
+    app.run(debug=True,port=5100)

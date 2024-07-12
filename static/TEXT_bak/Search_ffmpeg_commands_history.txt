@@ -1,0 +1,716 @@
+Search ffmpeg commands history
+user
+bash I have run: history > grep ffmpeg
+ChatGPT
+It seems like you're trying to search through your command history to find entries related to the `ffmpeg` command. However, the syntax you've provided won't work as expected. Let me guide you through a better approach:
+
+To search your command history for entries containing `ffmpeg`, you can use the `grep` command in combination with `history`. Here's how you can do it:
+
+```bash
+history | grep ffmpeg
+```
+
+This command will display lines from your command history that contain the term "ffmpeg". Each line will show the command number followed by the actual command.
+
+If you want to save these commands to a file, you can redirect the output of the above command to a file like this:
+
+```bash
+history | grep ffmpeg > ffmpeg_commands.txt
+```
+
+This will save the output to a file named `ffmpeg_commands.txt`.
+
+Give it a try and let me know if you encounter any issues!
+user
+
+I do not want the line numbers and leading spaces 
+ChatGPT
+Got it! You can remove the line numbers and leading spaces using `awk` or `cut` after filtering the history with `grep`. Here's how you can do it using `awk`:
+
+```bash
+history | grep ffmpeg | awk '{$1=""; print $0}' | sed 's/^\s*//'
+```
+
+And here's how you can do it using `cut`:
+
+```bash
+history | grep ffmpeg | cut -d " " -f 4-
+```
+
+Both commands will remove the line numbers and leading spaces from the output. Feel free to choose the one that suits you best!
+user
+how to cleran the hum and background noise from an mp4
+ChatGPT
+Cleaning up hum and background noise from an MP4 file typically involves audio processing techniques. One common approach is to use a tool like `ffmpeg`, which offers various filters and effects for audio manipulation. Here's a basic example of how you can use `ffmpeg` to reduce hum and background noise:
+
+```bash
+ffmpeg -i input.mp4 -af "highpass=f=100, lowpass=f=3000" output.mp4
+```
+
+In this command:
+- `-i input.mp4` specifies the input file.
+- `-af "highpass=f=100, lowpass=f=3000"` applies a high-pass filter to remove low-frequency noise (such as hum) below 100 Hz and a low-pass filter to remove high-frequency noise above 3000 Hz.
+- `output.mp4` specifies the output file.
+
+You may need to adjust the frequency values (`f=100` and `f=3000`) depending on the characteristics of the noise in your audio. Lower values for the high-pass filter can help reduce hum, while higher values for the low-pass filter can help remove high-frequency noise.
+
+Remember that noise reduction can sometimes affect the quality of the audio, so it's essential to experiment with different filter settings and listen to the output to find the right balance between noise reduction and audio quality.
+user
+from sys import argv
+from transformers import AutoTokenizer, AutoModelForCausalLM
+import torch
+import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+# Load pre-trained model and tokenizer (e.g., GPT-2)
+#tokenizer = AutoTokenizer.from_pretrained("gpt2")
+tokenizer = AutoTokenizer.from_pretrained("gpt2", pad_token_id=50256)
+model = AutoModelForCausalLM.from_pretrained("gpt2")
+# Set the temperature and top_p parameters
+temperature = 0.8
+top_p = 0.9
+# Define input text
+input_text = argv[1]
+# Tokenize input text
+inputs = tokenizer.encode(input_text, return_tensors="pt")
+# Generate text with adjusted parameters
+sample_output = model.generate(inputs, max_length=150, temperature=temperature, top_p=top_p, do_sample=True)
+# Decode generated text back to human-readable format
+generated_text = tokenizer.decode(sample_output[0], skip_special_tokens=True)
+print(generated_text)
+I want this turned into a flask app and get the input from index.html
+ChatGPT
+To turn your provided Python script into a Flask app that receives input from an `index.html` file, you'll need to modify it to handle HTTP requests and responses. Here's a complete Flask app that accomplishes this:
+
+```python
+from flask import Flask, render_template, request
+from transformers import AutoTokenizer, AutoModelForCausalLM
+import torch
+import os
+
+# Initialize Flask app
+app = Flask(__name__)
+
+# Load pre-trained model and tokenizer (e.g., GPT-2)
+tokenizer = AutoTokenizer.from_pretrained("gpt2", pad_token_id=50256)
+model = AutoModelForCausalLM.from_pretrained("gpt2")
+
+# Set environment variable to avoid Tokenizers parallelism issue
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+# Set the temperature and top_p parameters
+temperature = 0.8
+top_p = 0.9
+
+# Define route for index page
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+# Define route for processing input text
+@app.route('/generate', methods=['POST'])
+def generate_text():
+    # Get input text from HTML form
+    input_text = request.form['input_text']
+    
+    # Tokenize input text
+    inputs = tokenizer.encode(input_text, return_tensors="pt")
+    
+    # Generate text with adjusted parameters
+    sample_output = model.generate(inputs, max_length=150, temperature=temperature, top_p=top_p, do_sample=True)
+    
+    # Decode generated text back to human-readable format
+    generated_text = tokenizer.decode(sample_output[0], skip_special_tokens=True)
+    
+    # Return generated text as JSON response
+    return {'generated_text': generated_text}
+
+if __name__ == '__main__':
+    app.run(debug=True)
+```
+
+This Flask app defines two routes:
+1. The root route (`/`) renders the `index.html` template.
+2. The `/generate` route processes the input text sent from the form in `index.html`, generates text using the GPT-2 model, and returns the generated text as a JSON response.
+
+Make sure you have an `index.html` file in the same directory as your Flask app, and it should contain a form with a textarea for the user to input text.
+
+Let me know if you need further assistance with the `index.html` or anything else!
+user
+what goes in index.html
+ChatGPT
+In your `index.html` file, you'll need to create a form with a textarea where users can input text. Here's a simple example:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPT-2 Text Generation</title>
+</head>
+<body>
+    <h1>GPT-2 Text Generation</h1>
+    <form action="/generate" method="post">
+        <label for="input_text">Enter Input Text:</label><br>
+        <textarea id="input_text" name="input_text" rows="4" cols="50"></textarea><br>
+        <input type="submit" value="Generate Text">
+    </form>
+    <div id="generated_text"></div>
+
+    <script>
+        // AJAX request to Flask app to generate text
+        document.querySelector('form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            const response = await fetch('/generate', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            document.getElementById('generated_text').innerHTML = '<h2>Generated Text:</h2>' + data.generated_text;
+        });
+    </script>
+</body>
+</html>
+```
+
+Explanation:
+- The form sends a POST request to the `/generate` route of the Flask app.
+- The textarea with the name `input_text` allows users to input text.
+- When the form is submitted, an AJAX request is made to the Flask app to generate text based on the input.
+- The generated text is displayed in the `<div id="generated_text"></div>` element below the form.
+
+Ensure that this `index.html` file is in the same directory as your Flask app, and when you run the Flask app, it should serve this HTML file at the root URL.
+user
+from flask import Flask, render_template, request
+from transformers import AutoTokenizer, AutoModelForCausalLM
+import torch
+import os
+
+# Initialize Flask app
+app = Flask(__name__)
+
+# Load pre-trained model and tokenizer (e.g., GPT-2)
+tokenizer = AutoTokenizer.from_pretrained("gpt2", pad_token_id=50256)
+model = AutoModelForCausalLM.from_pretrained("gpt2")
+
+# Set environment variable to avoid Tokenizers parallelism issue
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+# Set the temperature and top_p parameters
+temperature = 0.8
+top_p = 0.9
+
+# Define route for index page
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+# Define route for processing input text
+@app.route('/generate', methods=['POST'])
+def generate_text():
+    # Get input text from HTML form
+    input_text = request.form['input_text']
+    
+    # Tokenize input text
+    inputs = tokenizer.encode(input_text, return_tensors="pt")
+    
+    # Generate text with adjusted parameters
+    sample_output = model.generate(inputs, max_length=150, temperature=temperature, top_p=top_p, do_sample=True)
+    
+    # Decode generated text back to human-readable format
+    generated_text = tokenizer.decode(sample_output[0], skip_special_tokens=True)
+    
+    # Return generated text as JSON response
+    return {'generated_text': generated_text}
+
+if __name__ == '__main__':
+    app.run(debug=True)
+so this needs to render a template
+ChatGPT
+Certainly! To render a template in Flask, you need to create an HTML file and then use the `render_template` function to render it. Let's create an `index.html` template file:
+
+Create a file named `index.html` in the same directory as your Flask app (assuming it's named `app.py`), and add the following content:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPT-2 Text Generation</title>
+</head>
+<body>
+    <h1>GPT-2 Text Generation</h1>
+    <form action="/generate" method="post">
+        <label for="input_text">Enter Input Text:</label><br>
+        <textarea id="input_text" name="input_text" rows="4" cols="50"></textarea><br>
+        <input type="submit" value="Generate Text">
+    </form>
+    <div id="generated_text"></div>
+
+    <script>
+        // AJAX request to Flask app to generate text
+        document.querySelector('form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            const response = await fetch('/generate', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            document.getElementById('generated_text').innerHTML = '<h2>Generated Text:</h2>' + data.generated_text;
+        });
+    </script>
+</body>
+</html>
+```
+
+This HTML file contains a form for inputting text and a div to display the generated text.
+
+Ensure that both `app.py` and `index.html` are in the same directory. When you run your Flask app, it will serve this HTML file at the root URL (`/`). You don't need to explicitly specify the template file in the `render_template` function, as Flask looks for templates in a directory named `templates` by default.
+user
+the Python it has no render_template
+ChatGPT
+Got it. If you don't have access to the `render_template` function in your Flask application, you won't be able to use HTML templates directly. In that case, you can embed the HTML directly within the Flask app as a multiline string. Here's how you can modify your Flask app to serve HTML directly:
+
+```python
+from flask import Flask, request
+from transformers import AutoTokenizer, AutoModelForCausalLM
+import torch
+import os
+
+# Initialize Flask app
+app = Flask(__name__)
+
+# Load pre-trained model and tokenizer (e.g., GPT-2)
+tokenizer = AutoTokenizer.from_pretrained("gpt2", pad_token_id=50256)
+model = AutoModelForCausalLM.from_pretrained("gpt2")
+
+# Set environment variable to avoid Tokenizers parallelism issue
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+# Set the temperature and top_p parameters
+temperature = 0.8
+top_p = 0.9
+
+# Define HTML content directly in the Flask app
+html_content = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPT-2 Text Generation</title>
+</head>
+<body>
+    <h1>GPT-2 Text Generation</h1>
+    <form action="/generate" method="post">
+        <label for="input_text">Enter Input Text:</label><br>
+        <textarea id="input_text" name="input_text" rows="4" cols="50"></textarea><br>
+        <input type="submit" value="Generate Text">
+    </form>
+    <div id="generated_text"></div>
+
+    <script>
+        // AJAX request to Flask app to generate text
+        document.querySelector('form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            const response = await fetch('/generate', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            document.getElementById('generated_text').innerHTML = '<h2>Generated Text:</h2>' + data.generated_text;
+        });
+    </script>
+</body>
+</html>
+"""
+
+# Define route for index page
+@app.route('/')
+def index():
+    return html_content
+
+# Define route for processing input text
+@app.route('/generate', methods=['POST'])
+def generate_text():
+    # Get input text from HTML form
+    input_text = request.form['input_text']
+    
+    # Tokenize input text
+    inputs = tokenizer.encode(input_text, return_tensors="pt")
+    
+    # Generate text with adjusted parameters
+    sample_output = model.generate(inputs, max_length=150, temperature=temperature, top_p=top_p, do_sample=True)
+    
+    # Decode generated text back to human-readable format
+    generated_text = tokenizer.decode(sample_output[0], skip_special_tokens=True)
+    
+    # Return generated text as JSON response
+    return {'generated_text': generated_text}
+
+if __name__ == '__main__':
+    app.run(debug=True)
+```
+
+In this version, the HTML content is directly embedded as a multiline string (`html_content`) within the Flask app. When the `/` route is accessed, it returns this HTML content directly without using the `render_template` function.
+user
+I want to import this as a blueprint into a larger application 
+ChatGPT
+If you want to import this Flask app as a blueprint into a larger application, you can wrap it in a blueprint. Here's how you can do it:
+
+First, create a new Python file, let's call it `gpt2_blueprint.py`, and define your Flask app and routes in it:
+
+```python
+from flask import Blueprint, request, jsonify
+from transformers import AutoTokenizer, AutoModelForCausalLM
+import torch
+import os
+
+# Create a blueprint
+gpt2_blueprint = Blueprint('gpt2_blueprint', __name__)
+
+# Load pre-trained model and tokenizer (e.g., GPT-2)
+tokenizer = AutoTokenizer.from_pretrained("gpt2", pad_token_id=50256)
+model = AutoModelForCausalLM.from_pretrained("gpt2")
+
+# Set environment variable to avoid Tokenizers parallelism issue
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+# Set the temperature and top_p parameters
+temperature = 0.8
+top_p = 0.9
+
+# Define route for processing input text
+@gpt2_blueprint.route('/generate', methods=['POST'])
+def generate_text():
+    # Get input text from HTML form
+    input_text = request.form['input_text']
+    
+    # Tokenize input text
+    inputs = tokenizer.encode(input_text, return_tensors="pt")
+    
+    # Generate text with adjusted parameters
+    sample_output = model.generate(inputs, max_length=150, temperature=temperature, top_p=top_p, do_sample=True)
+    
+    # Decode generated text back to human-readable format
+    generated_text = tokenizer.decode(sample_output[0], skip_special_tokens=True)
+    
+    # Return generated text as JSON response
+    return jsonify({'generated_text': generated_text})
+```
+
+Then, in your main Flask application file, import this blueprint and register it:
+
+```python
+from flask import Flask
+from gpt2_blueprint import gpt2_blueprint
+
+# Initialize Flask app
+app = Flask(__name__)
+
+# Register the blueprint
+app.register_blueprint(gpt2_blueprint)
+
+if __name__ == '__main__':
+    app.run(debug=True)
+```
+
+With this setup, your GPT-2 text generation functionality is encapsulated within a blueprint, which can be imported and registered within your larger Flask application. This modular approach makes it easier to manage and organize your codebase.
+user
+from flask import Blueprint, request, jsonify
+from transformers import AutoTokenizer, AutoModelForCausalLM
+import torch
+import os
+
+# Create a blueprint
+gpt2_blueprint = Blueprint('gpt2_blueprint', __name__)
+
+# Define HTML content directly in the Flask app
+html_content = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPT-2 Text Generation</title>
+</head>
+<body>
+    <h1>GPT-2 Text Generation</h1>
+    <form action="/generate" method="post">
+        <label for="input_text">Enter Input Text:</label><br>
+        <textarea id="input_text" name="input_text" rows="4" cols="50"></textarea><br>
+        <input type="submit" value="Generate Text">
+    </form>
+    <div id="generated_text"></div>
+
+    <script>
+        // AJAX request to Flask app to generate text
+        document.querySelector('form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            const response = await fetch('/generate', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            document.getElementById('generated_text').innerHTML = '<h2>Generated Text:</h2>' + data.generated_text;
+        });
+    </script>
+</body>
+</html>
+"""
+
+# Define route for index page
+@app.route('/talk')
+def talk():
+    return html_content
+
+# Load pre-trained model and tokenizer (e.g., GPT-2)
+tokenizer = AutoTokenizer.from_pretrained("gpt2", pad_token_id=50256)
+model = AutoModelForCausalLM.from_pretrained("gpt2")
+
+# Set environment variable to avoid Tokenizers parallelism issue
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+# Set the temperature and top_p parameters
+temperature = 0.8
+top_p = 0.9
+
+# Define route for processing input text
+@gpt2_blueprint.route('/generate', methods=['POST'])
+def generate_text():
+    # Get input text from HTML form
+    input_text = request.form['input_text']
+    
+    # Tokenize input text
+    inputs = tokenizer.encode(input_text, return_tensors="pt")
+    
+    # Generate text with adjusted parameters
+    sample_output = model.generate(inputs, max_length=150, temperature=temperature, top_p=top_p, do_sample=True)
+    
+    # Decode generated text back to human-readable format
+    generated_text = tokenizer.decode(sample_output[0], skip_special_tokens=True)
+    
+    # Return generated text as JSON response
+    return jsonify({'generated_text': generated_text})
+-----------------------
+will this work 
+ChatGPT
+Your approach seems almost correct, but there are a couple of issues:
+
+1. The `@app.route('/talk')` decorator is used outside of the Flask app (`app`), which will raise an error since `app` is not defined in this scope. You should move the `talk()` function inside the `gpt2_blueprint` and use the `@gpt2_blueprint.route('/talk')` decorator instead.
+
+2. The `html_content` variable is defined outside of the Flask app scope. You should move it inside the `talk()` function or directly return it from the route.
+
+Here's the corrected version:
+
+```python
+from flask import Blueprint, request, jsonify
+
+from transformers import AutoTokenizer, AutoModelForCausalLM
+import torch
+import os
+
+# Create a blueprint
+gpt2_blueprint = Blueprint('gpt2_blueprint', __name__)
+
+# Load pre-trained model and tokenizer (e.g., GPT-2)
+tokenizer = AutoTokenizer.from_pretrained("gpt2", pad_token_id=50256)
+model = AutoModelForCausalLM.from_pretrained("gpt2")
+
+# Set environment variable to avoid Tokenizers parallelism issue
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+# Set the temperature and top_p parameters
+temperature = 0.8
+top_p = 0.9
+
+# Define HTML content directly in the Flask app
+html_content = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPT-2 Text Generation</title>
+</head>
+<body>
+    <h1>GPT-2 Text Generation</h1>
+    <form action="/generate" method="post">
+        <label for="input_text">Enter Input Text:</label><br>
+        <textarea id="input_text" name="input_text" rows="4" cols="50"></textarea><br>
+        <input type="submit" value="Generate Text">
+    </form>
+    <div id="generated_text"></div>
+
+    <script>
+        // AJAX request to Flask app to generate text
+        document.querySelector('form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            const response = await fetch('/generate', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            document.getElementById('generated_text').innerHTML = '<h2>Generated Text:</h2>' + data.generated_text;
+        });
+    </script>
+</body>
+</html>
+"""
+
+# Define route for index page
+@gpt2_blueprint.route('/talk')
+def talk():
+    return html_content
+
+# Define route for processing input text
+@gpt2_blueprint.route('/generate', methods=['POST'])
+def generate_text():
+    # Get input text from HTML form
+    input_text = request.form['input_text']
+    
+    # Tokenize input text
+    inputs = tokenizer.encode(input_text, return_tensors="pt")
+    
+    # Generate text with adjusted parameters
+    sample_output = model.generate(inputs, max_length=150, temperature=temperature, top_p=top_p, do_sample=True)
+    
+    # Decode generated text back to human-readable format
+    generated_text = tokenizer.decode(sample_output[0], skip_special_tokens=True)
+    
+    # Return generated text as JSON response
+    return jsonify({'generated_text': generated_text})
+```
+
+With these changes, your blueprint should work correctly within a larger Flask application.
+user
+from flask import Blueprint, request, jsonify, render_template,url_for
+
+from transformers import AutoTokenizer, AutoModelForCausalLM
+import torch
+import os
+
+# Create a blueprint
+gpt2_blueprint = Blueprint('gpt2_blueprint', __name__)
+
+# Load pre-trained model and tokenizer (e.g., GPT-2)
+tokenizer = AutoTokenizer.from_pretrained("gpt2", pad_token_id=50256)
+model = AutoModelForCausalLM.from_pretrained("gpt2")
+
+# Set environment variable to avoid Tokenizers parallelism issue
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+# Set the temperature and top_p parameters
+temperature = 0.8
+top_p = 0.9
+
+# Define HTML content directly in the Flask app
+html_content = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPT-2 Text Generation</title>
+    <!-- link to style sheet -->-
+   static/css/style.css
+</head>
+<body>
+    <h1>GPT-2 Text Generation</h1>
+    <a style="color: red;" href="{{ url_for('index') }}">Home</a>
+
+    <form action="/generate" method="post">
+        <label for="input_text">Enter Input Text:</label><br>
+        <textarea id="input_text" name="input_text" rows="4" cols="50"></textarea><br>
+        <input type="submit" value="Generate Text">
+    </form>
+    <div id="generated_text"></div>
+
+    <script>
+        // AJAX request to Flask app to generate text
+        document.querySelector('form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            const response = await fetch('/generate', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            document.getElementById('generated_text').innerHTML = '<h2>Generated Text:</h2>' + data.generated_text;
+        });
+    </script>
+</body>
+</html>
+"""
+
+# Define route for index page
+@gpt2_blueprint.route('/talk')
+def talk():
+    return html_content
+
+# Define route for processing input text
+@gpt2_blueprint.route('/generate', methods=['POST'])
+def generate_text():
+    # Get input text from HTML form
+    input_text = request.form['input_text']
+    
+    # Tokenize input text
+    inputs = tokenizer.encode(input_text, return_tensors="pt")
+    
+    # Generate text with adjusted parameters
+    sample_output = model.generate(inputs, max_length=150, temperature=temperature, top_p=top_p, do_sample=True)
+    
+    # Decode generated text back to human-readable format
+    generated_text = tokenizer.decode(sample_output[0], skip_special_tokens=True)
+    
+    # Return generated text as JSON response
+    return jsonify({'generated_text': generated_text})
+how do I li to he css she ?
+ChatGPT
+To link to the CSS stylesheet in your HTML template, you can use the `url_for` function to generate the URL for the static file. Here's how you can modify your HTML content to link to the CSS stylesheet:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPT-2 Text Generation</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <h1>GPT-2 Text Generation</h1>
+    <a style="color: red;" href="{{ url_for('index') }}">Home</a>
+
+    <form action="/generate" method="post">
+        <label for="input_text">Enter Input Text:</label><br>
+        <textarea id="input_text" name="input_text" rows="4" cols="50"></textarea><br>
+        <input type="submit" value="Generate Text">
+    </form>
+    <div id="generated_text"></div>
+
+    <script>
+        // AJAX request to Flask app to generate text
+        document.querySelector('form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            const response = await fetch('/generate', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            document.getElementById('generated_text').innerHTML = '<h2>Generated Text:</h2>' + data.generated_text;
+        });
+    </script>
+</body>
+</html>
+```
+
+In this modification, `{{ url_for('static', filename='css/style.css') }}` generates the URL for the CSS file named `style.css` located in the `static/css/` directory of your Flask application. Make sure to place your CSS file in the appropriate directory according to the Flask convention.
+

@@ -1,0 +1,53 @@
+#!/usr/bin/env python
+'''
+This script reverses a video and concatenates it with its reverse.
+Given a video file, it reverses the video and concatenates it with its reverse.
+
+'''
+import subprocess
+import logging
+import os
+from sys import argv
+import glob
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+
+def reverse_and_concatenate_video(input_video, output_video):
+    try:
+        if not os.path.exists(input_video):
+            logging.error(f"Input video '{input_video}' not found.")
+            return
+        
+        # Step 1: Reverse the input video
+        reversed_video = "reversed_" + input_video
+        reverse_command = ["ffmpeg","-hide_banner" ,"-i", input_video, "-vf", "reverse", "-an", "-y",reversed_video]
+        logging.info("Reversing the input video...")
+        subprocess.run(reverse_command, check=True)
+
+        # Step 2: Concatenate the original and reversed videos
+        concat_command = [
+            "ffmpeg",
+            "-i", input_video,
+            "-i", reversed_video,
+            "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[outv]",
+            "-map", "[outv]", "-y" ,
+            output_video
+        ]
+        logging.info("Concatenating the original and reversed videos...")
+        subprocess.run(concat_command, check=True)
+
+        logging.info("Video concatenation completed successfully!")
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Error occurred: {e}")
+
+# Example usage
+if __name__ == "__main__":
+    # use glob to get a list of files in the directory mp4
+    directory = argv[1]
+    mp4_files = glob.glob(directory+"/*.mp4")
+    for mp4_file in mp4_files:
+        input_video = mp4_file
+        output_video = "output"+input_video
+        reverse_and_concatenate_video(input_video, output_video)
+    

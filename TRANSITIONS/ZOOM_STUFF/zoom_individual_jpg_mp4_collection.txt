@@ -1,0 +1,1117 @@
+import sqlite3
+import io
+from PIL import Image
+import numpy as np
+import moviepy.editor as mpy
+
+def retrieve_frames(conn):
+    """Retrieve frames from the database and return them as a list of Image objects."""
+    cursor = conn.cursor()
+    cursor.execute('SELECT frame FROM frames ORDER BY id')
+    frames = cursor.fetchall()
+    images = []
+
+    for frame in frames:
+        buffer = io.BytesIO(frame[0])
+        img = Image.open(buffer)
+        images.append(img)
+
+    return images
+
+def create_video_from_db(db_path, output_video_path, fps=30):
+    """Create a video from frames stored in the database."""
+    # Connect to the database
+    conn = sqlite3.connect(db_path)
+    
+    # Retrieve frames from the database
+    frames = retrieve_frames(conn)
+    
+    # Convert PIL Images to NumPy arrays
+    numpy_frames = [np.array(img) for img in frames]
+
+    # Create a video from the frames
+    clips = [mpy.ImageClip(img).set_duration(1/fps) for img in numpy_frames]
+    video = mpy.concatenate_videoclips(clips, method="compose")
+    video.write_videofile(output_video_path, fps=fps)
+    
+    print(f"Saved video: {output_video_path}")
+    
+    # Close the database connection
+    conn.close()
+
+def main():
+    db_path = 'frames.db'  # Path to your SQLite database
+    output_video_path = 'new_zoom_effect.mp4'  # Output video file path
+
+    # Create a video from frames stored in the database
+    create_video_from_db(db_path, output_video_path)
+
+if __name__ == '__main__':
+    main()
+import os
+import sqlite3
+import io
+from PIL import Image
+import moviepy.editor as mpy
+import numpy as np
+
+def create_zoom_frames(image_path, conn, num_frames=300, zoom_factor=2.0):
+    """Create zoom effect frames and save them to the database."""
+    img = Image.open(image_path)
+    width, height = img.size
+    width=width*.25
+    height=height*.25
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS frames (
+                        id INTEGER PRIMARY KEY,
+                        frame BLOB NOT NULL
+                      )''')
+
+    for i in range(num_frames):
+        scale = 1 + (zoom_factor - 1) * (i / (num_frames - 1))
+        print(f"Creating frame {i + 1}/{num_frames} with scale {scale}")
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+        resized_img = img.resize((new_width, new_height), Image.LANCZOS)
+        left = (new_width - width) // 2
+        top = (new_height - height) // 2
+        right = left + width
+        bottom = top + height
+        cropped_img = resized_img.crop((left, top, right, bottom))
+        # Convert cropped_img to numpy array and check shape
+        img_array = np.array(cropped_img)
+        if len(img_array.shape) == 3:  # img is an RGB(A) numpy array
+            img_array = img_array[..., :3]  # Drop alpha channel if present
+
+        # Save frame to in-memory bytes buffer
+        buffer = io.BytesIO()
+        Image.fromarray(img_array).save(buffer, format='PNG')
+        buffer.seek(0)
+
+        # Insert the frame into the database
+        cursor.execute('INSERT INTO frames (frame) VALUES (?)', (buffer.read(),))
+        conn.commit()
+
+        print(f"Saved frame {i + 1}/{num_frames} to database")
+
+def retrieve_frames(conn):
+    """Retrieve frames from the database and return them as a list of Image objects."""
+    cursor = conn.cursor()
+    cursor.execute('SELECT frame FROM frames ORDER BY id')
+    frames = cursor.fetchall()
+    images = []
+
+    for frame in frames:
+        buffer = io.BytesIO(frame[0])
+        img = Image.open(buffer)
+        images.append(img)
+
+    return images
+
+def create_zoom_video(images, output_video_path, fps=30):
+    """Create a video from a list of Image objects."""
+    clips = [mpy.ImageClip(np.array(img)).set_duration(1/fps) for img in images]
+    video = mpy.concatenate_videoclips(clips, method="compose")
+    video.write_videofile(output_video_path, fps=fps)
+    print(f"Saved video: {output_video_path}")
+
+def main():
+    image_path =  '/mnt/HDD500/FlaskArchitect/static/images/may29/00001.jpg'  # Replace with the path to your image
+    output_video_path = 'zoom_center.mp4'
+    db_path = 'zoom_center.db'
+
+    # Create a connection to the database
+    conn = sqlite3.connect(db_path)
+
+    # Create zoom effect frames and save them to the database
+    create_zoom_frames(image_path, conn)
+
+    # Retrieve frames from the database
+    frames = retrieve_frames(conn)
+
+    # Create video from frames
+    create_zoom_video(frames, output_video_path)
+
+    # Close the database connection
+    conn.close()
+
+if __name__ == '__main__':
+    main()
+import os
+import sqlite3
+import io
+from PIL import Image
+import moviepy.editor as mpy
+import numpy as np
+
+def create_zoom_frames(image_path, conn, num_frames=300, zoom_factor=2.0):
+    """Create zoom effect frames and save them to the database."""
+    img = Image.open(image_path)
+    width, height = img.size
+    width=width*.25
+    height=height*.25
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS frames (
+                        id INTEGER PRIMARY KEY,
+                        frame BLOB NOT NULL
+                      )''')
+
+    for i in range(num_frames):
+        scale = 1 + (zoom_factor - 1) * (i / (num_frames - 1))
+        print(f"Creating frame {i + 1}/{num_frames} with scale {scale}")
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+        resized_img = img.resize((new_width, new_height), Image.LANCZOS)
+        left = (new_width - width) // 2
+        top = (new_height - height) // 2
+        right = left + width
+        bottom = top + height
+        cropped_img = resized_img.crop((left, top, right, bottom))
+        # Convert cropped_img to numpy array and check shape
+        img_array = np.array(cropped_img)
+        if len(img_array.shape) == 3:  # img is an RGB(A) numpy array
+            img_array = img_array[..., :3]  # Drop alpha channel if present
+
+        # Save frame to in-memory bytes buffer
+        buffer = io.BytesIO()
+        Image.fromarray(img_array).save(buffer, format='PNG')
+        buffer.seek(0)
+
+        # Insert the frame into the database
+        cursor.execute('INSERT INTO frames (frame) VALUES (?)', (buffer.read(),))
+        conn.commit()
+
+        print(f"Saved frame {i + 1}/{num_frames} to database")
+
+def retrieve_frames(conn):
+    """Retrieve frames from the database and return them as a list of Image objects."""
+    cursor = conn.cursor()
+    cursor.execute('SELECT frame FROM frames ORDER BY id')
+    frames = cursor.fetchall()
+    images = []
+
+    for frame in frames:
+        buffer = io.BytesIO(frame[0])
+        img = Image.open(buffer)
+        images.append(img)
+
+    return images
+
+def create_zoom_video(images, output_video_path, fps=30):
+    """Create a video from a list of Image objects."""
+    clips = [mpy.ImageClip(np.array(img)).set_duration(1/fps) for img in images]
+    video = mpy.concatenate_videoclips(clips, method="compose")
+    video.write_videofile(output_video_path, fps=fps)
+    print(f"Saved video: {output_video_path}")
+
+def main():
+    image_path =  '/home/jack/Desktop/FlaskArchitect/static/images/stari-june8/00003.jpg'  # Replace with the path to your image
+    output_video_path = 'zoom_effectcenter.mp4'
+    db_path = 'frames-center.db'
+
+    # Create a connection to the database
+    conn = sqlite3.connect(db_path)
+
+    # Create zoom effect frames and save them to the database
+    create_zoom_frames(image_path, conn)
+
+    # Retrieve frames from the database
+    frames = retrieve_frames(conn)
+
+    # Create video from frames
+    create_zoom_video(frames, output_video_path)
+
+    # Close the database connection
+    conn.close()
+
+if __name__ == '__main__':
+    main()
+import sqlite3
+import io
+from PIL import Image, ImageEnhance
+import numpy as np
+import moviepy.editor as mpy
+
+def create_zoom_frames(image_path, db_path, num_frames=500, zoom_factor=3.5):
+    """Create zoom effect frames and save them to the database."""
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS frames (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            frame BLOB NOT NULL
+        )
+    ''')
+
+    img = Image.open(image_path)
+    width, height = img.size
+
+    for i in range(num_frames):
+        scale = 1 + (zoom_factor - 1) * (i / (num_frames - 1))
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+        resized_img = img.resize((new_width, new_height), Image.LANCZOS)
+
+        # Calculate cropping coordinates for top center focus
+        left = (new_width - width) // 2
+        top = 0
+        right = left + width
+        bottom = height
+
+        cropped_img = resized_img.crop((left, top, right, bottom))
+        
+        # Save frame to database
+        buffer = io.BytesIO()
+        cropped_img.save(buffer, format="PNG")
+        cursor.execute('INSERT INTO frames (frame) VALUES (?)', (buffer.getvalue(),))
+        print(f"Saved frame {i + 1}/{num_frames} to database")
+
+    conn.commit()
+    conn.close()
+
+def retrieve_frames(conn):
+    """Retrieve frames from the database and return them as a list of Image objects."""
+    cursor = conn.cursor()
+    cursor.execute('SELECT frame FROM frames ORDER BY id')
+    frames = cursor.fetchall()
+    images = []
+
+    for frame in frames:
+        buffer = io.BytesIO(frame[0])
+        img = Image.open(buffer)
+        images.append(np.array(img))
+
+    return images
+
+def create_video_from_db(db_path, output_video_path, fps=30):
+    """Create a video from frames stored in the database."""
+    conn = sqlite3.connect(db_path)
+    
+    # Retrieve frames from the database
+    frames = retrieve_frames(conn)
+    
+    # Create a video from the frames
+    clips = [mpy.ImageClip(img).set_duration(1/fps) for img in frames]
+    video = mpy.concatenate_videoclips(clips, method="compose")
+    video.write_videofile(output_video_path, fps=fps)
+    
+    print(f"Saved video: {output_video_path}")
+    
+    conn.close()
+
+def main():
+    image_path = '/home/jack/Desktop/FlaskArchitect/static/images/june2/00003.jpg'  # Replace with the path to your image
+    db_path = 'frames500.db'  # Path to your SQLite database
+    output_video_path = 'zoom_effect-500.mp4'  # Output video file path
+
+    # Create zoom effect frames and save them to the database
+    create_zoom_frames(image_path, db_path)
+
+    # Create a video from frames stored in the database
+    create_video_from_db(db_path, output_video_path)
+
+if __name__ == '__main__':
+    main()
+import os
+import sqlite3
+import io
+from PIL import Image
+import moviepy.editor as mpy
+import numpy as np
+
+def create_zoom_frames(image_path, conn, num_frames=300, zoom_factor=2.0):
+    """Create zoom effect frames and save them to the database."""
+    img = Image.open(image_path)
+    width, height = img.size
+    width=width*.25
+    height=height*.25
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS frames (
+                        id INTEGER PRIMARY KEY,
+                        frame BLOB NOT NULL
+                      )''')
+
+    for i in range(num_frames):
+        scale = 1 + (zoom_factor - 1) * (i / (num_frames - 1))
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+        resized_img = img.resize((new_width, new_height), Image.LANCZOS)
+        left = 0
+        top = new_height - height
+        right = left + width
+        bottom = top + height
+        cropped_img = resized_img.crop((left, top, right, bottom))
+
+        # Convert cropped_img to numpy array and check shape
+        img_array = np.array(cropped_img)
+        if len(img_array.shape) == 3:  # img is an RGB(A) numpy array
+            img_array = img_array[..., :3]  # Drop alpha channel if present
+
+        # Save frame to in-memory bytes buffer
+        buffer = io.BytesIO()
+        Image.fromarray(img_array).save(buffer, format='PNG')
+        buffer.seek(0)
+
+        # Insert the frame into the database
+        cursor.execute('INSERT INTO frames (frame) VALUES (?)', (buffer.read(),))
+        conn.commit()
+
+        print(f"Saved frame {i + 1}/{num_frames} to database")
+
+def retrieve_frames(conn):
+    """Retrieve frames from the database and return them as a list of Image objects."""
+    cursor = conn.cursor()
+    cursor.execute('SELECT frame FROM frames ORDER BY id')
+    frames = cursor.fetchall()
+    images = []
+
+    for frame in frames:
+        buffer = io.BytesIO(frame[0])
+        img = Image.open(buffer)
+        images.append(img)
+
+    return images
+
+def create_zoom_video(images, output_video_path, fps=30):
+    """Create a video from a list of Image objects."""
+    clips = [mpy.ImageClip(np.array(img)).set_duration(1/fps) for img in images]
+    video = mpy.concatenate_videoclips(clips, method="compose")
+    video.write_videofile(output_video_path, fps=fps)
+    print(f"Saved video: {output_video_path}")
+
+def main():
+    image_path =  '/home/jack/Desktop/FlaskArchitect/static/images/stari-june8/00003.jpg'  # Replace with the path to your image
+    output_video_path = 'zoom_effect-10.mp4'
+    db_path = 'frames-10.db'
+
+    # Create a connection to the database
+    conn = sqlite3.connect(db_path)
+
+    # Create zoom effect frames and save them to the database
+    create_zoom_frames(image_path, conn)
+
+    # Retrieve frames from the database
+    frames = retrieve_frames(conn)
+
+    # Create video from frames
+    create_zoom_video(frames, output_video_path)
+
+    # Close the database connection
+    conn.close()
+
+if __name__ == '__main__':
+    main()
+import sys
+import glob
+import random
+import sqlite3
+import os
+import datetime
+from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter
+from moviepy.editor import ImageClip, concatenate_videoclips, CompositeVideoClip
+THE_GOAL = '''\n
+open an image directory and select a random 3 images
+'''
+STEPS='''\n
+    1. create a logger
+    2. Create a database of transition steps between images.
+    3. Save transition steps to the database.
+    4. Retrieve transition steps from the database.
+    5. Recreate the transition clips from the database entries.
+    6. Save transition clips to the database.
+    7. Retrieve transition clips from the database.
+    8. Recreate the transition clips from the database entries.
+    9. Create a video of the transition clips.
+ A. Implement logit function to log events:
+    Status: complete   
+ B. Implement initialize_db function to initialize the database:
+    Status: complete
+ C. :    
+'''
+# Logit function to log events
+def logit(argvs):
+    argv = argvs   
+    log_file = "dbzoom_log.txt"  # Replace with the actual path to your log file
+    timestamp = datetime.datetime.now().strftime("%A_%b-%d-%Y_%H-%M-%S")
+    with open(log_file, "a") as log:
+        log.write(f"{timestamp}: {argv}\n")
+
+logit("Starting dbzoom.py")
+
+def initialize_db(conn):
+    logging.info("Initializing the database")
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS transitions (
+            id INTEGER PRIMARY KEY,
+            step INTEGER,
+            image1 TEXT,
+            image2 TEXT,
+            duration INTEGER
+        )
+    ''')
+    conn.commit()
+
+from PIL import Image
+import moviepy.editor as mpy
+import os
+
+def create_zoom_frames(image_path, output_dir, num_frames=300, zoom_factor=1.15):
+    """Create zoom effect frames and save them."""
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    img = Image.open(image_path)
+    width, height = img.size
+    width =width*.25
+    height = height*.25
+
+
+    center_x, center_y = width // 2, height // 2
+
+    for i in range(num_frames):
+        scale = 1 + (zoom_factor - 1) * (i / (num_frames - 1))
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+        resized_img = img.resize((new_width, new_height), Image.LANCZOS)
+        left = (new_width - width) // 2
+        top = (new_height - height) // 2
+        right = left + width
+        bottom = top + height
+        cropped_img = resized_img.crop((left, top, right, bottom))
+        frame_path = os.path.join(output_dir, f"frame_{i:03d}.png")
+        cropped_img.save(frame_path)
+        print(f"Saved {frame_path}")
+
+def create_zoom_video(frames_dir, output_video_path, fps=30):
+    """Create a video from saved frames."""
+    frame_files = [os.path.join(frames_dir, f) for f in sorted(os.listdir(frames_dir)) if f.endswith('.png')]
+    clips = [mpy.ImageClip(m).set_duration(1/fps) for m in frame_files]
+    video = mpy.concatenate_videoclips(clips, method="compose")
+    video.write_videofile(output_video_path, fps=fps)
+    print(f"Saved video: {output_video_path}")
+
+def main():
+    image_path = '/home/jack/Desktop/FlaskArchitect/static/images/stari-june8/00003.jpg'  # Replace with the path to your image
+    output_frames_dir = 'zoom_frames'
+    output_video_path = 'zoom_effect.mp4'
+
+    # Create zoom effect frames
+    create_zoom_frames(image_path, output_frames_dir)
+
+    # Create video from frames
+    create_zoom_video(output_frames_dir, output_video_path)
+
+if __name__ == '__main__':
+    main()
+
+
+
+
+
+
+
+
+
+"""
+
+
+
+def save_transition_step(conn, step, image1, image2, duration):
+    logging.info(f"Saving transition step {step} to database")
+    cursor = conn.cursor()
+    
+    # Insert the transition data into the database
+    cursor.execute('''
+        INSERT INTO transitions (step, image1, image2, duration)
+        VALUES (?, ?, ?, ?)
+    ''', (step, image1, image2, duration))
+    
+    conn.commit()
+    logging.info(f"Transition step {step} saved successfully")
+
+def get_transition_steps(conn):
+    logging.info("Retrieving transition steps from database")
+    cursor = conn.cursor()
+    
+    # Retrieve all transition steps from the database
+    cursor.execute('''
+        SELECT image1, image2, duration FROM transitions ORDER BY step
+    ''')
+    rows = cursor.fetchall()
+    
+    if rows:
+        logging.info("Transition steps retrieved successfully")
+        return rows
+    else:
+        logging.warning("No transition steps found in database")
+        return []
+
+def zoom_image(image_path, zoom=5.0):
+    # Load the image and calculate the new dimensions
+    zoomed_img = Image.open(image_path)
+    img = Image.open(image_path)
+    width, height = img.size
+    crop=5
+    zoom_img = zoomed_img.resize((width+crop, height+crop))
+    # cropped image = original image size
+    zoom_img = zoom_img.crop((crop//2, crop//2, width+crop//2, height+crop//2))
+
+    # Calculate the crop size
+    crop_size = min(width, height)
+
+    # Calculate the new width and height based on the zoom factor
+    new_width = int(width * zoom)
+    new_height = int(height * zoom)
+
+    # Calculate the crop coordinates
+    x = (new_width - crop_size) // 2
+    y = (new_height - crop_size) // 2
+    
+    # Convert the zoom image to RGB mode
+    zoom_img = zoom_img.convert("RGB")
+    
+    # Construct the zoom image path
+    base, ext = os.path.splitext(image_path)
+    zoom_img_path = f"{base}_zoom{ext}"
+    
+    zoom_img.save(zoom_img_path)
+    return zoom_img_path
+
+def create_transition(image1, image2, duration=20):
+    # Create a transition effect between two images over 20 seconds
+    logging.info("Creating transition effect")
+    clip1 = ImageClip(image1).set_duration(duration).crossfadeout(duration)
+    clip2 = ImageClip(image2).set_duration(duration).crossfadein(duration)
+    
+    # Composite clip to combine the two clips
+    transition_clip = CompositeVideoClip([clip1, clip2.set_start(duration / 2)])
+    
+    return transition_clip
+
+# Create an in-memory SQLite database
+conn = sqlite3.connect(':memory:')
+initialize_db(conn)
+
+# Example usage
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        logging.error("Please provide the path to the image directory")
+        sys.exit(1)
+    
+    image_dir = sys.argv[1]
+    image_files = glob.glob(f"{image_dir}/*.jpg")
+    
+    if len(image_files) < 3:
+        logging.error("Please provide at least 3 images in the directory")
+        sys.exit(1)
+    
+    # Randomly select 3 images
+    selected_images = random.sample(image_files, 3)
+    logging.info(f"Selected images: {selected_images}")
+    
+    # Quantize selected images
+    zoom_images = [quantize_image(image) for image in selected_images]
+    
+    # Create transition clips
+    transition1 = create_transition(zoom_images[0], zoom_images[1], duration=20)
+    transition2 = create_transition(zoom_images[1], zoom_images[2], duration=20)
+    
+    # Save transition steps to the database
+    save_transition_step(conn, 1, zoom_images[0], zoom_images[1], 20)
+    save_transition_step(conn, 2, zoom_images[1], zoom_images[2], 20)
+    
+    # Retrieve transition steps from the database
+    transition_steps = get_transition_steps(conn)
+    
+    # Recreate the transition clips from the database entries
+    recreated_clips = [create_transition(image1, image2, duration) for image1, image2, duration in transition_steps]
+    
+    # Concatenate the transition clips to create the final video
+    final_video = concatenate_videoclips(recreated_clips)
+    final_video.write_videofile("result.mp4", fps=24)
+    
+    # Close the connection
+    conn.close()
+"""import os
+import sqlite3
+import io
+from PIL import Image
+import moviepy.editor as mpy
+import numpy as np
+
+def create_zoom_frames(image_path, conn, num_frames=300, zoom_factor=2.0):
+    """Create zoom effect frames and save them to the database."""
+    img = Image.open(image_path)
+    width, height = img.size
+    width=width*.25
+    height=height*.25
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS frames (
+                        id INTEGER PRIMARY KEY,
+                        frame BLOB NOT NULL
+                      )''')
+
+    for i in range(num_frames):
+        scale = 1 + (zoom_factor - 1) * (i / (num_frames - 1))
+        print(f"Creating frame {i + 1}/{num_frames} with scale {scale}")
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+        resized_img = img.resize((new_width, new_height), Image.LANCZOS)
+        left = 0
+        left = left * scale
+        top = new_height - height
+        right = left + width
+        bottom = top + height
+        cropped_img = resized_img.crop((left, top, right, bottom))
+
+        # Convert cropped_img to numpy array and check shape
+        img_array = np.array(cropped_img)
+        if len(img_array.shape) == 3:  # img is an RGB(A) numpy array
+            img_array = img_array[..., :3]  # Drop alpha channel if present
+
+        # Save frame to in-memory bytes buffer
+        buffer = io.BytesIO()
+        Image.fromarray(img_array).save(buffer, format='PNG')
+        buffer.seek(0)
+
+        # Insert the frame into the database
+        cursor.execute('INSERT INTO frames (frame) VALUES (?)', (buffer.read(),))
+        conn.commit()
+
+        print(f"Saved frame {i + 1}/{num_frames} to database")
+
+def retrieve_frames(conn):
+    """Retrieve frames from the database and return them as a list of Image objects."""
+    cursor = conn.cursor()
+    cursor.execute('SELECT frame FROM frames ORDER BY id')
+    frames = cursor.fetchall()
+    images = []
+
+    for frame in frames:
+        buffer = io.BytesIO(frame[0])
+        img = Image.open(buffer)
+        images.append(img)
+
+    return images
+
+def create_zoom_video(images, output_video_path, fps=30):
+    """Create a video from a list of Image objects."""
+    clips = [mpy.ImageClip(np.array(img)).set_duration(1/fps) for img in images]
+    video = mpy.concatenate_videoclips(clips, method="compose")
+    video.write_videofile(output_video_path, fps=fps)
+    print(f"Saved video: {output_video_path}")
+
+def main():
+    image_path =  '/home/jack/Desktop/FlaskArchitect/static/images/stari-june8/00003.jpg'  # Replace with the path to your image
+    output_video_path = 'zoom_effect-10.mp4'
+    db_path = 'frames-10.db'
+
+    # Create a connection to the database
+    conn = sqlite3.connect(db_path)
+
+    # Create zoom effect frames and save them to the database
+    create_zoom_frames(image_path, conn)
+
+    # Retrieve frames from the database
+    frames = retrieve_frames(conn)
+
+    # Create video from frames
+    create_zoom_video(frames, output_video_path)
+
+    # Close the database connection
+    conn.close()
+
+if __name__ == '__main__':
+    main()
+from PIL import Image
+import moviepy.editor as mpy
+import os
+
+def create_zoom_frames(image_path, output_dir, num_frames=30, zoom_factor=1.5):
+    """Create zoom effect frames and save them."""
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    img = Image.open(image_path)
+    width, height = img.size
+
+    for i in range(num_frames):
+        scale = 1 + (zoom_factor - 1) * (i / (num_frames - 1))
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+        resized_img = img.resize((new_width, new_height), Image.LANCZOS)
+        left = 0
+        top = new_height - height
+        right = left + width
+        bottom = top + height
+        cropped_img = resized_img.crop((left, top, right, bottom))
+        frame_path = os.path.join(output_dir, f"frame_{i:03d}.png")
+        cropped_img.save(frame_path)
+        print(f"Saved {frame_path}")
+
+def create_zoom_video(frames_dir, output_video_path, fps=30):
+    """Create a video from saved frames."""
+    frame_files = [os.path.join(frames_dir, f) for f in sorted(os.listdir(frames_dir)) if f.endswith('.png')]
+    clips = [mpy.ImageClip(m).set_duration(1/fps) for m in frame_files]
+    video = mpy.concatenate_videoclips(clips, method="compose")
+    video.write_videofile(output_video_path, fps=fps)
+    print(f"Saved video: {output_video_path}")
+
+def main():
+    image_path = '/path/to/your/image.jpg'  # Replace with the path to your image
+    output_frames_dir = 'zoom_frames'
+    output_video_path = 'zoom_effect.mp4'
+
+    # Create zoom effect frames
+    create_zoom_frames(image_path, output_frames_dir)
+
+    # Create video from frames
+    create_zoom_video(output_frames_dir, output_video_path)
+
+if __name__ == '__main__':
+    main()
+import sqlite3
+import io
+import numpy as np
+from PIL import Image
+import moviepy.editor as mpy
+import os
+import sys
+
+def create_zoom_frames(image_path, db_path, num_frames=500, zoom_factor=3.5, focus_x=0.5, focus_y=0.5):
+    """
+    Create zoom effect frames focusing on a specific point and save them to the database.
+
+    :param image_path: Path to the input image.
+    :param db_path: Path to the SQLite database.
+    :param num_frames: Number of frames to generate.
+    :param zoom_factor: Maximum zoom factor.
+    :param focus_x: X-coordinate of the focus point (relative, 0 to 1).
+    :param focus_y: Y-coordinate of the focus point (relative, 0 to 1).
+    """
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS frames (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            frame BLOB NOT NULL
+        )
+    ''')
+
+    img = Image.open(image_path)
+    width, height = img.size
+
+    for i in range(num_frames):
+        scale = 1 + (zoom_factor - 1) * (i / (num_frames - 1))
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+        resized_img = img.resize((new_width, new_height), Image.LANCZOS)
+
+        # Calculate cropping coordinates for the specified focus point
+        focus_x_new = focus_x * new_width
+        focus_y_new = focus_y * new_height
+        left = int(focus_x_new - (width * focus_x))
+        top = int(focus_y_new - (height * focus_y))
+        right = left + width
+        bottom = top + height
+
+        # Ensure cropping box is within the image bounds
+        left = max(0, min(left, new_width - width))
+        top = max(0, min(top, new_height - height))
+        right = left + width
+        bottom = top + height
+
+        cropped_img = resized_img.crop((left, top, right, bottom))
+
+        # Save frame to database
+        buffer = io.BytesIO()
+        cropped_img.save(buffer, format="PNG")
+        cursor.execute('INSERT INTO frames (frame) VALUES (?)', (buffer.getvalue(),))
+        print(f"Saved frame {i + 1}/{num_frames} to database")
+
+    conn.commit()
+    conn.close()
+
+def retrieve_frames(conn):
+    """Retrieve frames from the database and return them as a list of Image objects."""
+    cursor = conn.cursor()
+    cursor.execute('SELECT frame FROM frames ORDER BY id')
+    frames = cursor.fetchall()
+    images = []
+
+    for frame in frames:
+        buffer = io.BytesIO(frame[0])
+        img = Image.open(buffer)
+        images.append(np.array(img))
+
+    return images
+
+def create_video_from_db(db_path, output_video_path, fps=30):
+    """Create a video from frames stored in the database."""
+    conn = sqlite3.connect(db_path)
+    
+    # Retrieve frames from the database
+    frames = retrieve_frames(conn)
+    
+    # Create a video from the frames
+    clips = [mpy.ImageClip(img).set_duration(1/fps) for img in frames]
+    video = mpy.concatenate_videoclips(clips, method="compose")
+    video.write_videofile(output_video_path, fps=fps)
+    
+    print(f"Saved video: {output_video_path}")
+
+# Main execution
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print("Usage: python script.py <image_path> <output_video_path> [num_frames] [zoom_factor] [focus_x] [focus_y]")
+        sys.exit(1)
+
+    image_path = sys.argv[1]
+    output_video_path = sys.argv[2]
+    
+    # Extract the base name (file name with extension)
+    base_name = os.path.basename(image_path)
+
+    # Remove the file extension
+    name_without_extension = os.path.splitext(base_name)[0]
+
+    # Create the db_path by appending '.db' to the name without extension
+    db_path = name_without_extension + ".db"
+
+    # Optional parameters with default values
+    num_frames = int(sys.argv[3]) if len(sys.argv) > 3 else 500
+    zoom_factor = float(sys.argv[4]) if len(sys.argv) > 4 else 3.5
+    focus_x = float(sys.argv[5]) if len(sys.argv) > 5 else 0.5
+    focus_y = float(sys.argv[6]) if len(sys.argv) > 6 else 0.5
+
+    print(f"Image path: {image_path}")
+    print(f"Database path: {db_path}")
+    print(f"Output video path: {output_video_path}")
+    print(f"Number of frames: {num_frames}")
+    print(f"Zoom factor: {zoom_factor}")
+    print(f"Focus X: {focus_x}")
+    print(f"Focus Y: {focus_y}")
+
+    # Create zoom frames and store them in the database
+    create_zoom_frames(image_path, db_path, num_frames, zoom_factor, focus_x, focus_y)
+
+    # Create a video from the frames stored in the database
+    create_video_from_db(db_path, output_video_path, fps=30)
+import sqlite3
+import io
+from PIL import Image, ImageEnhance
+import numpy as np
+import cv2
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Database setup
+DB_NAME = 'images.db'
+TABLE_NAME = 'processed_images'
+
+def create_database():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute(f'''
+        CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            image BLOB NOT NULL
+        )
+    ''')
+    conn.commit()
+    conn.close()
+    logging.info("Database and table created successfully.")
+
+def save_image_to_db(image):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    img_byte_arr = io.BytesIO()
+    image.save(img_byte_arr, format='PNG')
+    img_byte_arr = img_byte_arr.getvalue()
+    c.execute(f'''
+        INSERT INTO {TABLE_NAME} (image) VALUES (?)
+    ''', (sqlite3.Binary(img_byte_arr),))
+    conn.commit()
+    conn.close()
+    logging.info("Image saved to database successfully.")
+
+def retrieve_images_from_db():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute(f'SELECT image FROM {TABLE_NAME}')
+    rows = c.fetchall()
+    images = [Image.open(io.BytesIO(row[0])) for row in rows]
+    conn.close()
+    logging.info("Images retrieved from database successfully.")
+    return images
+
+def apply_perspective_and_zoom(image, scale_factor):
+    width, height = image.size
+    coeffs = (
+        scale_factor, 0, 0,          # top left
+        0, scale_factor, 0,          # top right
+        0, 0, 1                     # bottom
+    )
+    transformed_image = image.transform((width, height), Image.PERSPECTIVE, coeffs, resample=3)
+
+    new_size = (int(width * scale_factor), int(height * scale_factor))
+    resized_image = transformed_image.resize(new_size, resample=3)
+
+    left = (resized_image.width - width) // 2
+    top = (resized_image.height - height) // 2
+    right = left + width
+    bottom = top + height
+    cropped_image = resized_image.crop((left, top, right, bottom))
+
+    return cropped_image
+
+def main(image_path, iterations=200):
+    original_image = Image.open(image_path)
+    scale_increment = 0.01  # Incremental zoom scale per iteration
+
+    for i in range(iterations):
+        logging.info(f"Processing iteration {i + 1}/{iterations}...")
+        scale_factor = 1 + (scale_increment * (i + 1))
+        transformed_image = apply_perspective_and_zoom(original_image, scale_factor)
+        save_image_to_db(transformed_image)
+
+    logging.info("Processing complete.")
+    create_video_from_db()
+
+def create_video_from_db():
+    images = retrieve_images_from_db()
+    if not images:
+        logging.error("No images found in the database.")
+        return
+
+    width, height = images[0].size
+    video_path = 'output_video.mp4'
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    video = cv2.VideoWriter(video_path, fourcc, 10, (width, height))
+
+    for image in images:
+        frame = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+        video.write(frame)
+        logging.info("Added frame to video.")
+
+    video.release()
+    logging.info(f"Video created successfully: {video_path}")
+
+if __name__ == '__main__':
+    create_database()
+    main('static/images/00001.jpg')
+import sqlite3
+import io
+from PIL import Image
+import numpy as np
+import cv2
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Database setup
+DB_NAME = 'images.db'
+TABLE_NAME = 'processed_images'
+
+def create_database():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute(f'''
+        CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            image BLOB NOT NULL
+        )
+    ''')
+    conn.commit()
+    conn.close()
+    logging.info("Database and table created successfully.")
+
+def save_image_to_db(image):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    img_byte_arr = io.BytesIO()
+    image.save(img_byte_arr, format='PNG')
+    img_byte_arr = img_byte_arr.getvalue()
+    c.execute(f'''
+        INSERT INTO {TABLE_NAME} (image) VALUES (?)
+    ''', (sqlite3.Binary(img_byte_arr),))
+    conn.commit()
+    conn.close()
+    logging.info("Image saved to database successfully.")
+
+def retrieve_images_from_db():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute(f'SELECT image FROM {TABLE_NAME}')
+    rows = c.fetchall()
+    images = [Image.open(io.BytesIO(row[0])) for row in rows]
+    conn.close()
+    logging.info("Images retrieved from database successfully.")
+    return images
+
+def apply_perspective_and_zoom(image, perspective_factor, scale_factor):
+    width, height = image.size
+    
+    coeffs = (
+        1 + perspective_factor, perspective_factor, -width * perspective_factor / 2,
+        0, 1 + perspective_factor, -height * perspective_factor / 2,
+        0, 0, 1
+    )
+    
+    transformed_image = image.transform((width, height), Image.PERSPECTIVE, coeffs, resample=3)
+
+    new_size = (int(width * scale_factor), int(height * scale_factor))
+    resized_image = transformed_image.resize(new_size, resample=3)
+
+    left = (resized_image.width - width) // 2
+    top = (resized_image.height - height) // 2
+    right = left + width
+    bottom = top + height
+    cropped_image = resized_image.crop((left, top, right, bottom))
+
+    return cropped_image
+
+def main(image_path, iterations=200):
+    original_image = Image.open(image_path)
+    width, height = original_image.size
+    perspective_increment = 0.001  # Incremental perspective change per iteration
+    scale_increment = 0.005  # Incremental zoom scale per iteration
+
+    for i in range(iterations):
+        logging.info(f"Processing iteration {i + 1}/{iterations}...")
+        perspective_factor = perspective_increment * (i + 1)
+        scale_factor = 1 + (scale_increment * (i + 1))
+        transformed_image = apply_perspective_and_zoom(original_image, perspective_factor, scale_factor)
+        save_image_to_db(transformed_image)
+
+    logging.info("Processing complete.")
+    create_video_from_db()
+
+def create_video_from_db():
+    images = retrieve_images_from_db()
+    if not images:
+        logging.error("No images found in the database.")
+        return
+
+    width, height = images[0].size
+    video_path = 'output_video.mp4'
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    video = cv2.VideoWriter(video_path, fourcc, 10, (width, height))
+
+    for image in images:
+        frame = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+        video.write(frame)
+        logging.info("Added frame to video.")
+
+    video.release()
+    logging.info(f"Video created successfully: {video_path}")
+
+if __name__ == '__main__':
+    create_database()
+    main('static/images/00001.jpg')

@@ -1,0 +1,466 @@
+Prevent GPT2 from Repeating
+user
+#!/home/jack/miniconda3/envs/cloned_base/bin/python
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import datetime
+import os
+from sys import argv
+import torch
+
+BASEPATH = os.path.dirname(os.path.abspath(__file__))
+
+def logit(logdata):
+    timestr = datetime.datetime.now().strftime('%A_%b-%d-%Y %H:%M:%S')
+    log_file_path = os.path.join(BASEPATH, "testlog2.txt")
+    with open(log_file_path, "a") as log_file:
+        log_file.write(f"{timestr}: {logdata}\n")
+    print("testlog2.txt entry:", logdata)
+
+
+
+def generate_text(input_text, model, tokenizer, max_len, num_beams, num_return_sequences):
+    input_ids = tokenizer.encode(input_text, return_tensors="pt")
+    
+    attention_mask = torch.ones(input_ids.shape, dtype=torch.long)
+    pad_token_id = tokenizer.eos_token_id  # Setting pad_token_id to eos_token_id for open-end generation
+
+    beam_outputs = model.generate(
+        input_ids,
+        attention_mask=attention_mask,
+        pad_token_id=pad_token_id,
+        max_length=max_len,
+        num_beams=num_beams,
+        no_repeat_ngram_size=2,
+        early_stopping=True,
+        num_return_sequences=num_return_sequences
+    )
+
+    generated_sentences = [tokenizer.decode(output, skip_special_tokens=True) for output in beam_outputs]
+    return generated_sentences
+
+# Load the model and tokenizer
+model_name = "gpt2"
+model = AutoModelForCausalLM.from_pretrained(model_name)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+# Input text strings for text generation
+input_text = argv[1] #["I wonder if aliens live, undetected, among us.", "I enjoy talking about Arcanian AI."]
+
+generated_text = generate_text(input_text, model, tokenizer, max_len=250, num_beams=5, num_return_sequences=3)
+
+print("Input Text:", input_text)
+print("Generated Text:")
+for i, text in enumerate(generated_text):
+    print(f"{i+1}. {text}")
+    logit(f"{i+1}. {text}")
+    -------------------------------
+how do i keep it from repeating the same result
+ChatGPT
+To prevent the model from generating repeated results, you can adjust the parameters and add additional constraints to the generation process. One common approach is to use the `no_repeat_ngram_size` parameter, which you've already set to 2. This prevents the model from repeating any n-grams of the specified size.
+
+Additionally, you can consider using a temperature setting to add variability to the generation process. The temperature parameter controls the randomness of predictions by scaling the logits before applying the softmax function. Lower temperatures result in less random completions, while higher temperatures increase randomness.
+
+Here's the revised code with these adjustments:
+
+```python
+#!/home/jack/miniconda3/envs/cloned_base/bin/python
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import datetime
+import os
+from sys import argv
+import torch
+
+BASEPATH = os.path.dirname(os.path.abspath(__file__))
+
+def logit(logdata):
+    timestr = datetime.datetime.now().strftime('%A_%b-%d-%Y %H:%M:%S')
+    log_file_path = os.path.join(BASEPATH, "testlog2.txt")
+    with open(log_file_path, "a") as log_file:
+        log_file.write(f"{timestr}: {logdata}\n")
+    print("testlog2.txt entry:", logdata)
+
+def generate_text(input_text, model, tokenizer, max_len, num_beams, num_return_sequences, temperature):
+    input_ids = tokenizer.encode(input_text, return_tensors="pt")
+    
+    attention_mask = torch.ones(input_ids.shape, dtype=torch.long)
+    pad_token_id = tokenizer.eos_token_id  # Setting pad_token_id to eos_token_id for open-end generation
+
+    beam_outputs = model.generate(
+        input_ids,
+        attention_mask=attention_mask,
+        pad_token_id=pad_token_id,
+        max_length=max_len,
+        num_beams=num_beams,
+        no_repeat_ngram_size=2,
+        early_stopping=True,
+        num_return_sequences=num_return_sequences,
+        temperature=temperature
+    )
+
+    generated_sentences = [tokenizer.decode(output, skip_special_tokens=True) for output in beam_outputs]
+    return generated_sentences
+
+# Load the model and tokenizer
+model_name = "gpt2"
+model = AutoModelForCausalLM.from_pretrained(model_name)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+# Input text strings for text generation
+input_text = argv[1]
+
+generated_text = generate_text(input_text, model, tokenizer, max_len=250, num_beams=5, num_return_sequences=3, temperature=0.7)
+
+print("Input Text:", input_text)
+print("Generated Text:")
+for i, text in enumerate(generated_text):
+    print(f"{i+1}. {text}")
+    logit(f"{i+1}. {text}")
+```
+
+In this version, I've added the `temperature` parameter to the `generate_text` function call. Adjusting the temperature value can help introduce more variability into the text generation process, reducing the likelihood of repeated results.
+
+Try experimenting with different temperature values (e.g., 0.7, 0.8, 1.0) to find the setting that works best for your needs. Lower values (closer to 0) make the output more deterministic and less diverse, while higher values increase randomness and variability in the generated text.
+user
+beam_outputs = model.generate(
+        input_ids,
+        attention_mask=attention_mask,
+        pad_token_id=pad_token_id,
+        max_length=max_len,
+        num_beams=num_beams,
+        no_repeat_ngram_size=2,
+        early_stopping=True,
+        do_sample=True,
+        num_return_sequences=num_return_sequences,
+        temperature=temperature
+    )
+what are all the usable parameters here and explain
+ChatGPT
+Certainly! Here are the commonly used parameters for the `model.generate` method in the Hugging Face Transformers library, along with explanations for each:
+
+1. **`input_ids`**: 
+   - **Description**: Tensor of token ids to be used as input for generation.
+   - **Example**: `tokenizer.encode("Hello, world!", return_tensors="pt")`
+
+2. **`attention_mask`**: 
+   - **Description**: Tensor indicating which tokens should be attended to.
+   - **Example**: `torch.ones(input_ids.shape, dtype=torch.long)`
+
+3. **`pad_token_id`**: 
+   - **Description**: Token id to use for padding.
+   - **Example**: `tokenizer.eos_token_id`
+
+4. **`max_length`**: 
+   - **Description**: Maximum length of the sequence to be generated.
+   - **Example**: `max_len=250`
+
+5. **`num_beams`**: 
+   - **Description**: Number of beams for beam search. This controls how many different sequences are considered at each step in the generation.
+   - **Example**: `num_beams=5`
+
+6. **`no_repeat_ngram_size`**: 
+   - **Description**: Size of n-grams that should not be repeated in the generated text.
+   - **Example**: `no_repeat_ngram_size=2`
+
+7. **`early_stopping`**: 
+   - **Description**: Whether to stop the beam search when at least `num_beams` sentences are finished per batch.
+   - **Example**: `early_stopping=True`
+
+8. **`do_sample`**: 
+   - **Description**: Whether to use sampling; use greedy decoding otherwise.
+   - **Example**: `do_sample=True`
+
+9. **`num_return_sequences`**: 
+   - **Description**: Number of independently computed returned sequences for each input.
+   - **Example**: `num_return_sequences=3`
+
+10. **`temperature`**: 
+    - **Description**: The value used to modulate the next token probabilities. Higher values lead to more diverse outputs.
+    - **Example**: `temperature=0.7`
+
+11. **`top_k`**: 
+    - **Description**: The number of highest probability vocabulary tokens to keep for top-k-filtering.
+    - **Example**: `top_k=50`
+
+12. **`top_p`**: 
+    - **Description**: If set to a probability, only the tokens with the highest probabilities that add up to `top_p` or higher are kept for generation.
+    - **Example**: `top_p=0.95`
+
+13. **`repetition_penalty`**: 
+    - **Description**: The parameter for repetition penalty. 1.0 means no penalty.
+    - **Example**: `repetition_penalty=1.2`
+
+14. **`length_penalty`**: 
+    - **Description**: Exponential penalty to the length. 1.0 means no penalty.
+    - **Example**: `length_penalty=1.0`
+
+15. **`bad_words_ids`**: 
+    - **Description**: List of token ids that are not allowed to be generated.
+    - **Example**: `bad_words_ids=[[tokenizer.encode("badword")]]`
+
+16. **`min_length`**: 
+    - **Description**: Minimum length of the sequence to be generated.
+    - **Example**: `min_length=50`
+
+17. **`max_time`**: 
+    - **Description**: Maximum time in seconds for the generation.
+    - **Example**: `max_time=60.0`
+
+18. **`forced_bos_token_id`**: 
+    - **Description**: The id of the token to force as the first token.
+    - **Example**: `forced_bos_token_id=tokenizer.bos_token_id`
+
+19. **`forced_eos_token_id`**: 
+    - **Description**: The id of the token to force as the last token.
+    - **Example**: `forced_eos_token_id=tokenizer.eos_token_id`
+
+20. **`bad_words_ids`**: 
+    - **Description**: List of token ids that are not allowed to be generated.
+    - **Example**: `bad_words_ids=[[tokenizer.encode("inappropriate")]]`
+
+Here is an updated version of your code, including explanations and examples for each parameter:
+
+```python
+#!/home/jack/miniconda3/envs/cloned_base/bin/python
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import datetime
+import os
+from sys import argv
+import torch
+
+BASEPATH = os.path.dirname(os.path.abspath(__file__))
+
+def logit(logdata):
+    timestr = datetime.datetime.now().strftime('%A_%b-%d-%Y %H:%M:%S')
+    log_file_path = os.path.join(BASEPATH, "testlog2.txt")
+    with open(log_file_path, "a") as log_file:
+        log_file.write(f"{timestr}: {logdata}\n")
+    print("testlog2.txt entry:", logdata)
+
+def generate_text(input_text, model, tokenizer, max_len, num_beams, num_return_sequences, temperature):
+    input_ids = tokenizer.encode(input_text, return_tensors="pt")
+    
+    attention_mask = torch.ones(input_ids.shape, dtype=torch.long)
+    pad_token_id = tokenizer.eos_token_id  # Setting pad_token_id to eos_token_id for open-end generation
+
+    beam_outputs = model.generate(
+        input_ids,
+        attention_mask=attention_mask,
+        pad_token_id=pad_token_id,
+        max_length=max_len,
+        num_beams=num_beams,
+        no_repeat_ngram_size=2,
+        early_stopping=True,
+        do_sample=True,
+        num_return_sequences=num_return_sequences,
+        temperature=temperature,
+        top_k=50,  # Example: using top-k sampling
+        top_p=0.95,  # Example: using top-p sampling
+        repetition_penalty=1.2,  # Example: applying repetition penalty
+        length_penalty=1.0,  # Example: applying length penalty
+        min_length=50,  # Example: setting minimum length
+        forced_bos_token_id=tokenizer.bos_token_id,  # Example: forcing BOS token
+        forced_eos_token_id=tokenizer.eos_token_id  # Example: forcing EOS token
+    )
+
+    generated_sentences = [tokenizer.decode(output, skip_special_tokens=True) for output in beam_outputs]
+    return generated_sentences
+
+# Load the model and tokenizer
+model_name = "gpt2"
+model = AutoModelForCausalLM.from_pretrained(model_name)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+# Input text strings for text generation
+input_text = argv[1]
+
+generated_text = generate_text(input_text, model, tokenizer, max_len=250, num_beams=5, num_return_sequences=3, temperature=0.7)
+
+print("Input Text:", input_text)
+print("Generated Text:")
+for i, text in enumerate(generated_text):
+    print(f"{i+1}. {text}")
+    logit(f"{i+1}. {text}")
+```
+
+This example demonstrates how to use additional parameters like `top_k`, `top_p`, `repetition_penalty`, `length_penalty`, `min_length`, `forced_bos_token_id`, and `forced_eos_token_id`. Adjust these parameters as needed to fine-tune the generation process to meet your specific requirements.
+user
+it is still repeating 
+ChatGPT
+To further reduce the repetition of results, you can make use of additional parameters and techniques to enhance diversity. Here are some strategies:
+
+1. **Increase the diversity** by adjusting `temperature`, `top_k`, and `top_p`.
+2. **Repetition Penalty**: Use a higher repetition penalty to discourage the model from repeating phrases.
+3. **Use diverse beam search**: This technique generates diverse outputs by forcing different beams to explore different parts of the output space.
+
+Here's an updated version of your script implementing these strategies:
+
+```python
+#!/home/jack/miniconda3/envs/cloned_base/bin/python
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import datetime
+import os
+from sys import argv
+import torch
+
+BASEPATH = os.path.dirname(os.path.abspath(__file__))
+
+def logit(logdata):
+    timestr = datetime.datetime.now().strftime('%A_%b-%d-%Y %H:%M:%S')
+    log_file_path = os.path.join(BASEPATH, "testlog2.txt")
+    with open(log_file_path, "a") as log_file:
+        log_file.write(f"{timestr}: {logdata}\n")
+    print("testlog2.txt entry:", logdata)
+
+def generate_text(input_text, model, tokenizer, max_len, num_beams, num_return_sequences, temperature, top_k, top_p, repetition_penalty):
+    input_ids = tokenizer.encode(input_text, return_tensors="pt")
+    
+    attention_mask = torch.ones(input_ids.shape, dtype=torch.long)
+    pad_token_id = tokenizer.eos_token_id  # Setting pad_token_id to eos_token_id for open-end generation
+
+    # Generate text using diverse beam search
+    beam_outputs = model.generate(
+        input_ids,
+        attention_mask=attention_mask,
+        pad_token_id=pad_token_id,
+        max_length=max_len,
+        num_beams=num_beams,
+        no_repeat_ngram_size=2,
+        early_stopping=True,
+        do_sample=True,
+        num_return_sequences=num_return_sequences,
+        temperature=temperature,
+        top_k=top_k,  # Using top-k sampling
+        top_p=top_p,  # Using top-p sampling
+        repetition_penalty=repetition_penalty,  # Applying repetition penalty
+        diversity_penalty=1.0  # Increasing diversity among beams
+    )
+
+    generated_sentences = [tokenizer.decode(output, skip_special_tokens=True) for output in beam_outputs]
+    return generated_sentences
+
+# Load the model and tokenizer
+model_name = "gpt2"
+model = AutoModelForCausalLM.from_pretrained(model_name)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+# Input text strings for text generation
+input_text = argv[1]
+
+generated_text = generate_text(
+    input_text, 
+    model, 
+    tokenizer, 
+    max_len=250, 
+    num_beams=5, 
+    num_return_sequences=3, 
+    temperature=0.9,  # Increase temperature for more randomness
+    top_k=50,  # Using top-k sampling
+    top_p=0.95,  # Using top-p sampling
+    repetition_penalty=1.2  # Higher repetition penalty
+)
+
+print("Input Text:", input_text)
+print("Generated Text:")
+for i, text in enumerate(generated_text):
+    print(f"{i+1}. {text}")
+    logit(f"{i+1}. {text}")
+```
+
+### Explanation of Additional Parameters:
+
+- **`diversity_penalty`**: Increases diversity among beams. This parameter forces different beams to explore different parts of the output space.
+- **`top_k` and `top_p`**: Adjusting these parameters helps to control the sampling process, making the output more diverse and less repetitive.
+- **`temperature`**: Increasing this value makes the model more likely to choose less probable next tokens, which increases diversity.
+- **`repetition_penalty`**: A higher value penalizes the model more for repeating the same phrases, reducing repetition.
+
+Experiment with these parameters to find the best combination that minimizes repetition in your generated text.
+user
+raise ValueError(group_error_prefix + "`do_sample` must be set to `False`")
+ValueError: `diversity_penalty` is not 0.0 or `num_beam_groups` is not 1, triggering group beam search. In this generation mode, `do_sample` must be set to `False`
+(cloned_base) jack@jack-Desktop:~/Desktop/SuperApp$ ./SuperChat "Consciousness: Could a state of partial consiouness already exist in higher AT models?"
+/home/jack/miniconda3/envs/cloned_base/lib/python3.9/site-packages/transformers/generation/configuration_utils.py:490: UserWarning: `do_sample` is set to `False`. However, `temperature` is set to `0.9` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `temperature`.
+  warnings.warn(
+
+ChatGPT
+To avoid the `ValueError` you encountered, you need to ensure that `do_sample` is set to `False` when using `diversity_penalty`. Also, when `do_sample` is `False`, `temperature` should not be set as it is only used in sample-based generation modes. 
+
+Here is a corrected version of your script without using `diversity_penalty` and ensuring proper usage of `do_sample` and `temperature`:
+
+```python
+#!/home/jack/miniconda3/envs/cloned_base/bin/python
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import datetime
+import os
+from sys import argv
+import torch
+
+BASEPATH = os.path.dirname(os.path.abspath(__file__))
+
+def logit(logdata):
+    timestr = datetime.datetime.now().strftime('%A_%b-%d-%Y %H:%M:%S')
+    log_file_path = os.path.join(BASEPATH, "testlog2.txt")
+    with open(log_file_path, "a") as log_file:
+        log_file.write(f"{timestr}: {logdata}\n")
+    print("testlog2.txt entry:", logdata)
+
+def generate_text(input_text, model, tokenizer, max_len, num_beams, num_return_sequences, temperature, top_k, top_p, repetition_penalty):
+    input_ids = tokenizer.encode(input_text, return_tensors="pt")
+    
+    attention_mask = torch.ones(input_ids.shape, dtype=torch.long)
+    pad_token_id = tokenizer.eos_token_id  # Setting pad_token_id to eos_token_id for open-end generation
+
+    beam_outputs = model.generate(
+        input_ids,
+        attention_mask=attention_mask,
+        pad_token_id=pad_token_id,
+        max_length=max_len,
+        num_beams=num_beams,
+        no_repeat_ngram_size=2,
+        early_stopping=True,
+        do_sample=True,
+        num_return_sequences=num_return_sequences,
+        temperature=temperature,
+        top_k=top_k,  # Using top-k sampling
+        top_p=top_p,  # Using top-p sampling
+        repetition_penalty=repetition_penalty  # Applying repetition penalty
+    )
+
+    generated_sentences = [tokenizer.decode(output, skip_special_tokens=True) for output in beam_outputs]
+    return generated_sentences
+
+# Load the model and tokenizer
+model_name = "gpt2"
+model = AutoModelForCausalLM.from_pretrained(model_name)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+# Input text strings for text generation
+input_text = argv[1]
+
+generated_text = generate_text(
+    input_text, 
+    model, 
+    tokenizer, 
+    max_len=250, 
+    num_beams=5, 
+    num_return_sequences=3, 
+    temperature=0.9,  # Increase temperature for more randomness
+    top_k=50,  # Using top-k sampling
+    top_p=0.95,  # Using top-p sampling
+    repetition_penalty=1.2  # Higher repetition penalty
+)
+
+print("Input Text:", input_text)
+print("Generated Text:")
+for i, text in enumerate(generated_text):
+    print(f"{i+1}. {text}")
+    logit(f"{i+1}. {text}")
+```
+
+### Explanation:
+1. **`do_sample=True`**: We use sampling-based generation.
+2. **`temperature=0.9`**: Ensures diversity by scaling the logits before applying the softmax function.
+3. **`top_k=50` and `top_p=0.95`**: Ensures diverse sampling by using top-k and top-p (nucleus) sampling.
+4. **`repetition_penalty=1.2`**: Penalizes repeating tokens to reduce repetition.
+
+This script should work without raising the `ValueError` and help generate more diverse outputs. Adjust the parameters as needed to further reduce repetition and enhance diversity.
+

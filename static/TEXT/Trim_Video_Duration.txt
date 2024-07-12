@@ -1,0 +1,382 @@
+Trim Video Duration
+user
+#!/home/jack/miniconda3/envs/cloned_base/bin/python
+from moviepy.video.compositing.transitions import slide_in
+from moviepy.video.fx import all
+from moviepy.editor import *
+import glob
+import random
+from PIL import Image
+import cv2
+import os
+import uuid
+import shutil
+from sys import argv
+
+def add_title_image(video_path, hex_color="#A52A2A"):
+    # Define the directory path
+    directory_path = "temp"
+    # Check if the directory exists
+    if not os.path.exists(directory_path):
+        # If not, create it
+        os.makedirs(directory_path)
+        print(f"Directory '{directory_path}' created.")
+    else:
+        print(f"Directory '{directory_path}' already exists.")
+
+    # Load the video file and title image
+    video_clip = VideoFileClip(video_path)
+    print(video_clip.size)
+    width, height = video_clip.size
+    title_image_path = "Title_Image02.png"
+    # Set the desired size of the padded video (e.g., video width + padding, video height + padding)
+    padded_size = (width + 90, height + 90)
+
+    # Calculate the position for centering the video within the larger frame
+    x_position = (padded_size[0] - video_clip.size[0]) / 2
+    y_position = (padded_size[1] - video_clip.size[1]) / 2
+    # hex_color = "#09723c"
+    # Remove the '#' and split the hex code into R, G, and B components
+    r = int(hex_color[1:3], 16)
+    g = int(hex_color[3:5], 16)
+    b = int(hex_color[5:7], 16)
+
+    # Create an RGB tuple
+    rgb_tuple = (r, g, b)
+
+    # Create a blue ColorClip as the background
+    blue_background = ColorClip(padded_size, color=rgb_tuple)
+
+    # Add the video clip on top of the red background
+    padded_video_clip = CompositeVideoClip(
+        [blue_background, video_clip.set_position((x_position, y_position))])
+    padded_video_clip = padded_video_clip.set_duration(video_clip.duration)
+    # title_image_path = "/home/jack/Desktop/EXPER/static/assets/Title_Image02.png"
+    # Load the title image
+    title_image = ImageClip(title_image_path)
+
+    # Set the duration of the title image
+    title_duration = video_clip.duration
+    title_image = title_image.set_duration(title_duration)
+
+    print(video_clip.size)
+    # Position the title image at the center and resize it to fit the video dimensions
+    # title_image = title_image.set_position(("left", "top"))
+    title_image = title_image.set_position((0, 5))
+    # video_clip.size = (620,620)
+    title_image = title_image.resize(padded_video_clip.size)
+
+    # Position the title image at the center and resize it to fit the video dimensions
+    # title_image = title_image.set_position(("center", "center")).resize(video_clip.size)
+
+    # Create a composite video clip with the title image overlay
+    composite_clip = CompositeVideoClip([padded_video_clip, title_image])
+    # Limit the length to 58 seconds
+    composite_clip = composite_clip.subclip(0, 40)
+
+    # Check if the video has no audio
+    if not composite_clip.audio:
+        # Load a random background music
+        mp3_files = glob.glob("/mnt/HDD500/collections/Music/*.mp3")
+        random.shuffle(mp3_files)
+
+        # Now choose a random MP3 file from the shuffled list
+        mp_music = random.choice(mp3_files)
+
+        # Load the background music without setting duration
+        music_clip = AudioFileClip(mp_music)
+        music_clip = music_clip.subclip(0, 40)
+        fade_duration = 1.0
+        music_clip = music_clip.audio_fadein(fade_duration).audio_fadeout(fade_duration)
+        # Set the audio of the composite clip to the background music
+        composite_clip = composite_clip.set_audio(music_clip)
+
+    output_path = 'temp/final_output3.mp4'
+    # Export the final video with the background music
+    composite_clip.write_videofile(output_path)
+    uid = str(uuid.uuid4())  # Generate a unique ID using uuid
+    mp4_file = f"/home/jack/Desktop/HDD500/collections/vids/Ready_Post_{uid}.mp4"
+    shutil.copyfile(output_path, mp4_file)
+    print(mp4_file)
+    VIDEO = output_path
+    return VIDEO
+
+if __name__ == "__main__":
+    # video_path = "/mnt/HDD500/EXPER/static/assets/Title_Image02.png"
+    video_path = argv[1]
+    add_title_image(video_path, hex_color="#A52A2A")
+
+i want the video to stop when the audio stops
+ChatGPT
+To make the video stop when the audio stops, you need to ensure that the video duration matches the audio duration. Here is the complete script with added logging for better debugging and ensuring the video duration is set to the audio duration:
+
+```python
+#!/home/jack/miniconda3/envs/cloned_base/bin/python
+from moviepy.video.compositing.transitions import slide_in
+from moviepy.video.fx import all
+from moviepy.editor import *
+import glob
+import random
+from PIL import Image
+import cv2
+import os
+import uuid
+import shutil
+from sys import argv
+
+def add_title_image(video_path, hex_color="#A52A2A"):
+    # Define the directory path
+    directory_path = "temp"
+    # Check if the directory exists
+    if not os.path.exists(directory_path):
+        # If not, create it
+        os.makedirs(directory_path)
+        print(f"Directory '{directory_path}' created.")
+    else:
+        print(f"Directory '{directory_path}' already exists.")
+
+    # Load the video file and title image
+    video_clip = VideoFileClip(video_path)
+    print(f"Video size: {video_clip.size}")
+    width, height = video_clip.size
+    title_image_path = "Title_Image02.png"
+    # Set the desired size of the padded video (e.g., video width + padding, video height + padding)
+    padded_size = (width + 90, height + 90)
+
+    # Calculate the position for centering the video within the larger frame
+    x_position = (padded_size[0] - video_clip.size[0]) / 2
+    y_position = (padded_size[1] - video_clip.size[1]) / 2
+    # Remove the '#' and split the hex code into R, G, and B components
+    r = int(hex_color[1:3], 16)
+    g = int(hex_color[3:5], 16)
+    b = int(hex_color[5:7], 16)
+
+    # Create an RGB tuple
+    rgb_tuple = (r, g, b)
+
+    # Create a blue ColorClip as the background
+    blue_background = ColorClip(padded_size, color=rgb_tuple)
+
+    # Add the video clip on top of the red background
+    padded_video_clip = CompositeVideoClip(
+        [blue_background, video_clip.set_position((x_position, y_position))])
+    padded_video_clip = padded_video_clip.set_duration(video_clip.duration)
+    # title_image_path = "/home/jack/Desktop/EXPER/static/assets/Title_Image02.png"
+    # Load the title image
+    title_image = ImageClip(title_image_path)
+
+    # Set the duration of the title image
+    title_duration = video_clip.duration
+    title_image = title_image.set_duration(title_duration)
+
+    print(f"Padded video size: {padded_video_clip.size}")
+    # Position the title image at the center and resize it to fit the video dimensions
+    title_image = title_image.set_position((0, 5))
+    title_image = title_image.resize(padded_video_clip.size)
+
+    # Create a composite video clip with the title image overlay
+    composite_clip = CompositeVideoClip([padded_video_clip, title_image])
+    # Limit the length to 58 seconds
+    composite_clip = composite_clip.subclip(0, 40)
+
+    # Check if the video has no audio
+    if not composite_clip.audio:
+        # Load a random background music
+        mp3_files = glob.glob("/mnt/HDD500/collections/Music/*.mp3")
+        random.shuffle(mp3_files)
+
+        # Now choose a random MP3 file from the shuffled list
+        mp_music = random.choice(mp3_files)
+
+        # Load the background music without setting duration
+        music_clip = AudioFileClip(mp_music)
+        music_clip = music_clip.subclip(0, 40)
+        fade_duration = 1.0
+        music_clip = music_clip.audio_fadein(fade_duration).audio_fadeout(fade_duration)
+        
+        # Adjust the video duration to match the audio duration
+        composite_clip = composite_clip.set_duration(music_clip.duration)
+        print(f"Music duration: {music_clip.duration}")
+        print(f"Adjusted video duration: {composite_clip.duration}")
+        
+        # Set the audio of the composite clip to the background music
+        composite_clip = composite_clip.set_audio(music_clip)
+
+    output_path = 'temp/final_output3.mp4'
+    # Export the final video with the background music
+    composite_clip.write_videofile(output_path)
+    uid = str(uuid.uuid4())  # Generate a unique ID using uuid
+    mp4_file = f"/home/jack/Desktop/HDD500/collections/vids/Ready_Post_{uid}.mp4"
+    shutil.copyfile(output_path, mp4_file)
+    print(f"Output video file: {mp4_file}")
+    VIDEO = output_path
+    return VIDEO
+
+if __name__ == "__main__":
+    video_path = argv[1]
+    add_title_image(video_path, hex_color="#A52A2A")
+```
+
+In this updated script:
+
+- The video duration is set to match the audio duration (`composite_clip = composite_clip.set_duration(music_clip.duration)`) to ensure the video stops when the audio stops.
+- Added additional print statements to log the size of the video, the padded video, and the duration of both the audio and the adjusted video for easier debugging.
+- The output path of the final video file is logged.
+user
+the audio is voice and all different lengths.don't fade out voice
+ChatGPT
+To handle audio tracks of varying lengths and avoid fading out the voice, you can adjust the code to set the video duration to the duration of the audio, regardless of its length. Here is the updated script:
+
+```python
+#!/home/jack/miniconda3/envs/cloned_base/bin/python
+from moviepy.video.compositing.transitions import slide_in
+from moviepy.video.fx import all
+from moviepy.editor import *
+import glob
+import random
+from PIL import Image
+import cv2
+import os
+import uuid
+import shutil
+from sys import argv
+
+def add_title_image(video_path, hex_color="#A52A2A"):
+    # Define the directory path
+    directory_path = "temp"
+    # Check if the directory exists
+    if not os.path.exists(directory_path):
+        # If not, create it
+        os.makedirs(directory_path)
+        print(f"Directory '{directory_path}' created.")
+    else:
+        print(f"Directory '{directory_path}' already exists.")
+
+    # Load the video file and title image
+    video_clip = VideoFileClip(video_path)
+    print(f"Video size: {video_clip.size}")
+    width, height = video_clip.size
+    title_image_path = "Title_Image02.png"
+    # Set the desired size of the padded video (e.g., video width + padding, video height + padding)
+    padded_size = (width + 90, height + 90)
+
+    # Calculate the position for centering the video within the larger frame
+    x_position = (padded_size[0] - video_clip.size[0]) / 2
+    y_position = (padded_size[1] - video_clip.size[1]) / 2
+    # Remove the '#' and split the hex code into R, G, and B components
+    r = int(hex_color[1:3], 16)
+    g = int(hex_color[3:5], 16)
+    b = int(hex_color[5:7], 16)
+
+    # Create an RGB tuple
+    rgb_tuple = (r, g, b)
+
+    # Create a blue ColorClip as the background
+    blue_background = ColorClip(padded_size, color=rgb_tuple)
+
+    # Add the video clip on top of the red background
+    padded_video_clip = CompositeVideoClip(
+        [blue_background, video_clip.set_position((x_position, y_position))])
+    padded_video_clip = padded_video_clip.set_duration(video_clip.duration)
+    # title_image_path = "/home/jack/Desktop/EXPER/static/assets/Title_Image02.png"
+    # Load the title image
+    title_image = ImageClip(title_image_path)
+
+    # Set the duration of the title image
+    title_duration = video_clip.duration
+    title_image = title_image.set_duration(title_duration)
+
+    print(f"Padded video size: {padded_video_clip.size}")
+    # Position the title image at the center and resize it to fit the video dimensions
+    title_image = title_image.set_position((0, 5))
+    title_image = title_image.resize(padded_video_clip.size)
+
+    # Create a composite video clip with the title image overlay
+    composite_clip = CompositeVideoClip([padded_video_clip, title_image])
+
+    # Check if the video has no audio
+    if not composite_clip.audio:
+        # Load a random background music
+        mp3_files = glob.glob("/mnt/HDD500/collections/Music/*.mp3")
+        random.shuffle(mp3_files)
+
+        # Now choose a random MP3 file from the shuffled list
+        mp_music = random.choice(mp3_files)
+
+        # Load the background music without setting duration
+        music_clip = AudioFileClip(mp_music)
+
+        # Adjust the video duration to match the audio duration
+        composite_clip = composite_clip.set_duration(music_clip.duration)
+        print(f"Music duration: {music_clip.duration}")
+        print(f"Adjusted video duration: {composite_clip.duration}")
+
+        # Set the audio of the composite clip to the background music
+        composite_clip = composite_clip.set_audio(music_clip)
+
+    output_path = 'temp/final_output3.mp4'
+    # Export the final video with the background music
+    composite_clip.write_videofile(output_path)
+    uid = str(uuid.uuid4())  # Generate a unique ID using uuid
+    mp4_file = f"/home/jack/Desktop/HDD500/collections/vids/Ready_Post_{uid}.mp4"
+    shutil.copyfile(output_path, mp4_file)
+    print(f"Output video file: {mp4_file}")
+    VIDEO = output_path
+    return VIDEO
+
+if __name__ == "__main__":
+    video_path = argv[1]
+    add_title_image(video_path, hex_color="#A52A2A")
+```
+
+In this updated script:
+
+1. **Removed Fade Effects**: The `audio_fadein` and `audio_fadeout` functions have been removed to ensure that the voice does not fade in or out.
+2. **Adjusted Video Duration**: The video duration is set to match the audio duration (`composite_clip = composite_clip.set_duration(music_clip.duration)`) to ensure the video stops when the audio stops.
+3. **Logging**: Print statements have been added to log the size of the video, the padded video, and the duration of both the audio and the adjusted video for easier debugging.
+user
+# Execute the SELECT query with the constructed WHERE clause
+        query = f"SELECT ROWID, title, content, image, video_filename FROM post WHERE {where_clause}"
+        rows = cursor.execute(query, search_terms_tuple) 
+i want the results desc by id
+ChatGPT
+To sort the results in descending order by the ID (assuming `ROWID` is the primary key or a unique identifier), you can add an `ORDER BY` clause to your SQL query. Here is the updated code snippet:
+
+```python
+# Execute the SELECT query with the constructed WHERE clause and order the results by ROWID in descending order
+query = f"SELECT ROWID, title, content, image, video_filename FROM post WHERE {where_clause} ORDER BY ROWID DESC"
+rows = cursor.execute(query, search_terms_tuple)
+```
+
+This will ensure that the results are sorted by `ROWID` in descending order. Here is the complete context for clarity:
+
+```python
+import sqlite3
+
+def fetch_posts(where_clause, search_terms_tuple):
+    # Connect to the SQLite database
+    conn = sqlite3.connect('your_database.db')
+    cursor = conn.cursor()
+
+    # Execute the SELECT query with the constructed WHERE clause and order the results by ROWID in descending order
+    query = f"SELECT ROWID, title, content, image, video_filename FROM post WHERE {where_clause} ORDER BY ROWID DESC"
+    rows = cursor.execute(query, search_terms_tuple)
+    
+    # Fetch all results
+    result = rows.fetchall()
+    
+    # Close the connection
+    conn.close()
+    
+    return result
+
+# Example usage
+where_clause = "title LIKE ? AND content LIKE ?"
+search_terms_tuple = ('%example%', '%content%')
+posts = fetch_posts(where_clause, search_terms_tuple)
+for post in posts:
+    print(post)
+```
+
+In this example, the function `fetch_posts` executes a SELECT query on the `post` table with a WHERE clause and orders the results by `ROWID` in descending order. The results are then fetched and returned.
+

@@ -1,0 +1,821 @@
+Fix File Copying Error
+user
+import subprocess
+import shutil
+import os
+import sqlite3
+import random
+from flask import Flask
+import logging
+from logging.handlers import RotatingFileHandler
+import shutil
+from flask import Flask, render_template, url_for, request, redirect, flash, send_file, render_template_string
+
+app = Flask(__name__)
+# Create a logger object
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Create a formatter for the log messages
+formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]')
+
+# Create a file handler to write log messages to a file
+file_handler = RotatingFileHandler('Logs/QuickVid.log', maxBytes=10000, backupCount=1)
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(formatter)
+
+# Add the file handler to the logger
+logger.addHandler(file_handler)
+
+# Set up logging for the Flask app
+app.logger.addHandler(file_handler)
+# Create a logger object
+
+
+@app.route('/')
+def home():
+    data = render_template_string("<a href='{{ url_for('indexB') }}'>Create a Video</a><br />")
+    return data
+
+@app.route('/indexB')
+def indexB():
+    # Get the current date and time
+    current_datetime = subprocess.check_output(["date", "+%Y-%m-%d_%H-%M-%S"]).decode().strip()
+    
+    # Create a filename with the current date and time
+    filename = f"EXPERIMENT/_file_{current_datetime}.mp4"
+    
+    # Set the paths and filenames
+    #DIR = "static/milestones_resources/alien_files/"
+    DIR = "static/milestones_resources/examin/"
+    directory_name = os.path.basename(DIR.rstrip('/'))
+    MUSIC ="OLD_resources/Devil_s_Organ-Jimena_Contreras.mp3"
+    # Update VIDEO and FINAL filenames
+    VIDEO = f"EXP/{directory_name}.mp4"
+    FINAL = f"EXP/file_{current_datetime}store.mp4"
+    TExt = "TEXT TEST 12345"
+    logger.debug('This is a debug message: %s', TExt)
+    logger.debug('This is FINAL: %s', FINAL)
+    # Get all filenames in the directory
+    filenames = os.listdir(DIR)
+    logger.debug('This is filenames: %s', filenames)
+    
+    # Sort the filenames in alphabetical order
+    filenames.sort()
+    
+    # Shuffle the filenames randomly
+    random.shuffle(filenames)
+    logger.debug('This is shuffled filenames: %s', filenames)
+
+    # Generate a temporary directory to store renamed files
+    temp_dir = "temp"
+    
+    # Rename files with leading zeros
+    # Rename files with leading zeros
+    for i, filename in enumerate(filenames, start=1):
+        print(f"FILENAME:,{DIR}{filename}")
+        new_filename = f"{temp_dir}/{i:05d}.jpg"
+        logger.debug('This is filename: %s', filename)
+    shutil.copy(f"{DIR}{filename}", f"{new_filename}")
+
+    
+    # Execute the FFmpeg command to create VIDEO
+    subprocess.call([
+        "ffmpeg", "-hide_banner", "-framerate", "5", "-i", "temp/%05d.jpg", "-c:v", "libx264",
+        "-r", "30", "-pix_fmt", "yuv420p", "-y", VIDEO
+    ])
+    
+    # Remove the temporary directory and files
+    for filename in os.listdir(temp_dir):
+        os.remove(os.path.join(temp_dir, filename))
+    
+    # Generate the image with text
+    TITLEimage = f"{DIR}{directory_name}"
+    subprocess.call([
+        "ffmpeg", "-i", TITLEimage,
+        "-vf", f"drawtext=text='{directory_name}':fontfile=/home/jack/fonts/freesansbold.ttf:fontsize=45:fontcolor=white:x=(w-text_w)/2:y=((h-text_h)/2)-300",
+        "-y", "static/result_image_with_text.jpg"
+    ])
+
+    # Concatenate the image with text and the video
+    subprocess.call([
+        "ffmpeg", "-loop", "1", "-i", "static/text/result_image_with_text.jpg",
+        "-vf", "fade=t=in:st=0:d=1:alpha=1, fade=t=out:st=3:d=1:alpha=1",
+        "-c:v", "libx264", "-t", "4", "-y", "static/text/result_image_with_text.mp4"
+    ])
+    
+    subprocess.call([
+        "ffmpeg", "-i", "static/text/result_image_with_text.mp4", "-i", filename,
+        "-filter_complex", "[0:v] [1:v] concat=n=2:v=1:a=0 [v]",
+        "-map", "[v]", "-t", "59", "-y", "EXP/titled.mp4"
+    ])
+    
+    random_number = subprocess.check_output(["shuf", "-i", "100-3099", "-n", "1"]).decode().strip()
+    subprocess.call([
+        "ffmpeg", "-ss", "0", "-i", "EXP/titled.mp4",
+        "-ss", random_number, "-i", MUSIC,
+        "-map", "0:v", "-map", "1:a",
+        "-c:v", "copy", "-c:a", "aac", "-shortest", "-t", "58", "-y", FINAL
+    ])
+    
+    
+    vid = "static/videos/temp.mp4"
+    
+    return render_template('indexB.html', final_video=FINAL)
+
+
+DATABASE = 'image_database.db'
+STATIC_FOLDER = 'static'
+
+def create_database():
+    conn = sqlite3.connect(DATABASE)
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS image_directories
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, directory TEXT, jpg_count INT)''')
+    conn.commit()
+    conn.close()
+
+def scan_directories():
+    conn = sqlite3.connect(DATABASE)
+    c = conn.cursor()
+    for root, dirs, files in os.walk(STATIC_FOLDER):
+        jpg_count = len([file for file in files if file.endswith('.jpg')])
+        if jpg_count > 40:
+            print(root, jpg_count)
+            directory = os.path.relpath(root, STATIC_FOLDER)
+            c.execute("INSERT INTO image_directories (directory, jpg_count) VALUES (?, ?)", (directory, jpg_count))
+    conn.commit()
+    conn.close()
+
+@app.route('/update_database')
+def update_database():
+    create_database()
+    scan_directories()
+    return 'Database Updated'
+
+if __name__ == '__main__':
+    app.run(debug=True)
+ERROR: not copy to temp
+ChatGPT
+The error you're encountering is due to a logical mistake in your code. In the section where you're trying to copy files to the temporary directory, you have placed the `shutil.copy` command outside the loop. As a result, it only copies the last file in the `filenames` list. To fix this issue, you need to indent the `shutil.copy` command so that it is executed for each file in the loop. Here's the corrected code:
+
+```python
+# Rename files with leading zeros
+for i, filename in enumerate(filenames, start=1):
+    print(f"FILENAME:,{DIR}{filename}")
+    new_filename = f"{temp_dir}/{i:05d}.jpg"
+    logger.debug('This is filename: %s', filename)
+    shutil.copy(f"{DIR}{filename}", f"{new_filename}")
+```
+
+By indenting the `shutil.copy` command, it will be executed for each file in the `filenames` list, and the files will be copied to the temporary directory correctly.
+user
+File "/mnt/HDD500/FLASK/QuickVid.py", line 77, in indexB
+    shutil.copy(f"{DIR}{filename}", f"{new_filename}")
+  File "/usr/lib/python3.9/shutil.py", line 418, in copy
+    copyfile(src, dst, follow_symlinks=follow_symlinks)
+  File "/usr/lib/python3.9/shutil.py", line 264, in copyfile
+    with open(src, 'rb') as fsrc, open(dst, 'wb') as fdst:
+IsADirectoryError: [Errno 21] Is a directory: 'static/milestones_resources/examin/temp'
+
+ChatGPT
+The error message indicates that the destination path you provided for copying the files (`'static/milestones_resources/examin/temp'`) is a directory instead of a specific file path. 
+
+To resolve this issue, you need to ensure that the destination path is a file path, including the desired filename. You can modify the `new_filename` variable to include the destination directory and the filename. Here's the updated code:
+
+```python
+# Rename files with leading zeros
+for i, filename in enumerate(filenames, start=1):
+    print(f"FILENAME:,{DIR}{filename}")
+    new_filename = f"{temp_dir}/{i:05d}.jpg"
+    logger.debug('This is filename: %s', filename)
+    shutil.copy(f"{DIR}{filename}", f"{DIR}{new_filename}")
+```
+
+By modifying the `shutil.copy` line to use the destination directory (`DIR`) along with the `new_filename`, it ensures that the files are copied to the correct file path in the temporary directory.
+user
+
+    File "/mnt/HDD500/FLASK/QuickVid.py", line 78, in indexB
+
+    shutil.copy(f"{DIR}{filename}", f"{DIR}{new_filename}")
+
+    File "/usr/lib/python3.9/shutil.py", line 418, in copy
+
+    copyfile(src, dst, follow_symlinks=follow_symlinks)
+
+    File "/usr/lib/python3.9/shutil.py", line 264, in copyfile
+
+    with open(src, 'rb') as fsrc, open(dst, 'wb') as fdst:
+
+    IsADirectoryError: [Errno 21] Is a directory: 'static/milestones_resources/examin/temp'
+
+ChatGPT
+I apologize for the confusion. It seems that the `temp` directory already exists within the `static/milestones_resources/examin` directory, and you are attempting to copy files into it. However, `shutil.copy` expects the destination path to be the complete file path, including the filename.
+
+To resolve the issue, you need to modify the destination path to include the complete file path, including the `temp` directory. Here's the updated code:
+
+```python
+# Rename files with leading zeros
+for i, filename in enumerate(filenames, start=1):
+    print(f"FILENAME:,{DIR}{filename}")
+    new_filename = f"{temp_dir}/{i:05d}.jpg"
+    logger.debug('This is filename: %s', filename)
+    shutil.copy(f"{DIR}{filename}", f"{DIR}{new_filename}")
+```
+
+By providing the complete file path for the destination, including the `temp` directory, the files will be copied to the correct location.
+user
+how do I remove the temp
+ChatGPT
+To remove the temporary directory and its contents after copying the files, you can use the `shutil.rmtree()` function. Here's an example of how you can remove the `temp` directory:
+
+```python
+import shutil
+import os
+
+# ...
+
+# Remove the temporary directory and files
+shutil.rmtree(temp_dir)
+```
+
+By calling `shutil.rmtree(temp_dir)`, the `temp` directory and all its contents will be deleted.
+
+Make sure to place this code after you have finished using the temporary files and no longer need them.
+user
+# Generate a temporary directory to store renamed files
+    temp_dir = "temp"
+    
+    # Rename files with leading zeros
+    # Rename files with leading zeros
+    # Rename files with leading zeros
+    for i, filename in enumerate(filenames, start=1):
+        print(f"FILENAME:,{DIR}{filename}")
+        new_filename = f"{temp_dir}/{i:05d}.jpg"
+        logger.debug('This is filename: %s', filename)
+        shutil.copy(f"{DIR}{filename}", f"{DIR}{new_filename}")
+
+
+ChatGPT
+If you want to remove the `temp` directory and its contents after the files have been copied, you can add the following code after the loop:
+
+```python
+# Remove the temporary directory and files
+shutil.rmtree(temp_dir)
+```
+
+Here's the updated code:
+
+```python
+# Generate a temporary directory to store renamed files
+temp_dir = "temp"
+
+# Rename files with leading zeros
+for i, filename in enumerate(filenames, start=1):
+    print(f"FILENAME:,{DIR}{filename}")
+    new_filename = f"{temp_dir}/{i:05d}.jpg"
+    logger.debug('This is filename: %s', filename)
+    shutil.copy(f"{DIR}{filename}", f"{DIR}{new_filename}")
+
+# Remove the temporary directory and files
+shutil.rmtree(temp_dir)
+```
+
+After the loop finishes, `shutil.rmtree(temp_dir)` will delete the `temp` directory and its contents. Make sure to place this code after you have finished using the temporary files.
+user
+import subprocess
+import shutil
+import os
+import sqlite3
+import random
+from flask import Flask
+import logging
+from logging.handlers import RotatingFileHandler
+import shutil
+from flask import Flask, render_template, url_for, request, redirect, flash, send_file, render_template_string
+
+app = Flask(__name__)
+# Create a logger object
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Create a formatter for the log messages
+formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]')
+
+# Create a file handler to write log messages to a file
+file_handler = RotatingFileHandler('Logs/QuickVid.log', maxBytes=10000, backupCount=1)
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(formatter)
+
+# Add the file handler to the logger
+logger.addHandler(file_handler)
+
+# Set up logging for the Flask app
+app.logger.addHandler(file_handler)
+# Create a logger object
+
+
+@app.route('/')
+def home():
+    data = render_template_string("<a href='{{ url_for('indexB') }}'>Create a Video</a><br />")
+    return data
+
+@app.route('/indexB')
+def indexB():
+    # Get the current date and time
+    current_datetime = subprocess.check_output(["date", "+%Y-%m-%d_%H-%M-%S"]).decode().strip()
+    
+    # Create a filename with the current date and time
+    filename = f"EXPERIMENT/_file_{current_datetime}.mp4"
+    
+    # Set the paths and filenames
+    #DIR = "static/milestones_resources/alien_files/"
+    DIR = "static/milestones_resources/examin/"
+    directory_name = os.path.basename(DIR.rstrip('/'))
+    MUSIC ="OLD_resources/Devil_s_Organ-Jimena_Contreras.mp3"
+    # Update VIDEO and FINAL filenames
+    VIDEO = f"EXP/{directory_name}.mp4"
+    FINAL = f"EXP/file_{current_datetime}store.mp4"
+    TExt = "TEXT TEST 12345"
+    logger.debug('This is a debug message: %s', TExt)
+    logger.debug('This is FINAL: %s', FINAL)
+    # Get all filenames in the directory
+    filenames = os.listdir(DIR)
+    logger.debug('This is filenames: %s', filenames)
+    
+    # Sort the filenames in alphabetical order
+    filenames.sort()
+    
+    # Shuffle the filenames randomly
+    random.shuffle(filenames)
+    logger.debug('This is shuffled filenames: %s', filenames)
+ 
+    # Generate a temporary directory to store renamed files
+    temp_dir = "temp"
+    
+    # Rename files with leading zeros
+    # Rename files with leading zeros
+    # Rename files with leading zeros
+    for i, filename in enumerate(filenames, start=1):
+        print(f"FILENAME:,{DIR}{filename}")
+        new_filename = f"{temp_dir}/{i:05d}.jpg"
+        logger.debug('This is filename: %s', filename)
+        shutil.copy(f"{DIR}{filename}", f"{DIR}{new_filename}")
+
+
+
+    
+    # Execute the FFmpeg command to create VIDEO
+    subprocess.call([
+        "ffmpeg", "-hide_banner", "-framerate", "5", "-i", "temp/%05d.jpg", "-c:v", "libx264",
+        "-r", "30", "-pix_fmt", "yuv420p", "-y", VIDEO
+    ])
+    
+    # Remove the temporary directory and files
+    for filename in os.listdir(temp_dir):
+        os.remove(os.path.join(temp_dir, filename))
+    
+    # Generate the image with text
+    TITLEimage = f"{DIR}{directory_name}"
+    subprocess.call([
+        "ffmpeg", "-i", TITLEimage,
+        "-vf", f"drawtext=text='{directory_name}':fontfile=/home/jack/fonts/freesansbold.ttf:fontsize=45:fontcolor=white:x=(w-text_w)/2:y=((h-text_h)/2)-300",
+        "-y", "static/result_image_with_text.jpg"
+    ])
+
+    # Concatenate the image with text and the video
+    subprocess.call([
+        "ffmpeg", "-loop", "1", "-i", "static/text/result_image_with_text.jpg",
+        "-vf", "fade=t=in:st=0:d=1:alpha=1, fade=t=out:st=3:d=1:alpha=1",
+        "-c:v", "libx264", "-t", "4", "-y", "static/text/result_image_with_text.mp4"
+    ])
+    
+    subprocess.call([
+        "ffmpeg", "-i", "static/text/result_image_with_text.mp4", "-i", filename,
+        "-filter_complex", "[0:v] [1:v] concat=n=2:v=1:a=0 [v]",
+        "-map", "[v]", "-t", "59", "-y", "EXP/titled.mp4"
+    ])
+    
+    random_number = subprocess.check_output(["shuf", "-i", "100-3099", "-n", "1"]).decode().strip()
+    subprocess.call([
+        "ffmpeg", "-ss", "0", "-i", "EXP/titled.mp4",
+        "-ss", random_number, "-i", MUSIC,
+        "-map", "0:v", "-map", "1:a",
+        "-c:v", "copy", "-c:a", "aac", "-shortest", "-t", "58", "-y", FINAL
+    ])
+    
+    
+    vid = "static/videos/temp.mp4"
+
+    return render_template('indexB.html', final_video=FINAL)
+
+
+DATABASE = 'image_database.db'
+STATIC_FOLDER = 'static'
+
+def create_database():
+    conn = sqlite3.connect(DATABASE)
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS image_directories
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, directory TEXT, jpg_count INT)''')
+    conn.commit()
+    conn.close()
+
+def scan_directories():
+    conn = sqlite3.connect(DATABASE)
+    c = conn.cursor()
+    for root, dirs, files in os.walk(STATIC_FOLDER):
+        jpg_count = len([file for file in files if file.endswith('.jpg')])
+        if jpg_count > 40:
+            print(root, jpg_count)
+            directory = os.path.relpath(root, STATIC_FOLDER)
+            c.execute("INSERT INTO image_directories (directory, jpg_count) VALUES (?, ?)", (directory, jpg_count))
+    conn.commit()
+    conn.close()
+
+@app.route('/update_database')
+def update_database():
+    create_database()
+    scan_directories()
+    return 'Database Updated'
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+ChatGPT
+In your provided code, you can remove the `temp` directory and its contents after the files have been copied by adding the following code after the loop:
+
+```python
+# Remove the temporary directory and files
+shutil.rmtree(temp_dir)
+```
+
+Here's the updated code snippet:
+
+```python
+# Rename files with leading zeros
+for i, filename in enumerate(filenames, start=1):
+    print(f"FILENAME:,{DIR}{filename}")
+    new_filename = f"{temp_dir}/{i:05d}.jpg"
+    logger.debug('This is filename: %s', filename)
+    shutil.copy(f"{DIR}{filename}", f"{DIR}{new_filename}")
+
+# Remove the temporary directory and files
+shutil.rmtree(temp_dir)
+```
+
+Place this code after the loop that renames the files with leading zeros. After the loop finishes, `shutil.rmtree(temp_dir)` will delete the `temp` directory and its contents. Make sure to place this code after you have finished using the temporary files.
+user
+could you resend the script complete
+ChatGPT
+Certainly! Here's the complete script with the addition of removing the temporary directory and files:
+
+```python
+import subprocess
+import shutil
+import os
+import sqlite3
+import random
+from flask import Flask
+import logging
+from logging.handlers import RotatingFileHandler
+import shutil
+from flask import Flask, render_template, url_for, request, redirect, flash, send_file, render_template_string
+
+app = Flask(__name__)
+# Create a logger object
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Create a formatter for the log messages
+formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]')
+
+# Create a file handler to write log messages to a file
+file_handler = RotatingFileHandler('Logs/QuickVid.log', maxBytes=10000, backupCount=1)
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(formatter)
+
+# Add the file handler to the logger
+logger.addHandler(file_handler)
+
+# Set up logging for the Flask app
+app.logger.addHandler(file_handler)
+# Create a logger object
+
+
+@app.route('/')
+def home():
+    data = render_template_string("<a href='{{ url_for('indexB') }}'>Create a Video</a><br />")
+    return data
+
+@app.route('/indexB')
+def indexB():
+    # Get the current date and time
+    current_datetime = subprocess.check_output(["date", "+%Y-%m-%d_%H-%M-%S"]).decode().strip()
+    
+    # Create a filename with the current date and time
+    filename = f"EXPERIMENT/_file_{current_datetime}.mp4"
+    
+    # Set the paths and filenames
+    #DIR = "static/milestones_resources/alien_files/"
+    DIR = "static/milestones_resources/examin/"
+    directory_name = os.path.basename(DIR.rstrip('/'))
+    MUSIC ="OLD_resources/Devil_s_Organ-Jimena_Contreras.mp3"
+    # Update VIDEO and FINAL filenames
+    VIDEO = f"EXP/{directory_name}.mp4"
+    FINAL = f"EXP/file_{current_datetime}store.mp4"
+    TExt = "TEXT TEST 12345"
+    logger.debug('This is a debug message: %s', TExt)
+    logger.debug('This is FINAL: %s', FINAL)
+    # Get all filenames in the directory
+    filenames = os.listdir(DIR)
+    logger.debug('This is filenames: %s', filenames)
+    
+    # Sort the filenames in alphabetical order
+    filenames.sort()
+    
+    # Shuffle the filenames randomly
+    random.shuffle(filenames)
+    logger.debug('This is shuffled filenames: %s', filenames)
+ 
+    # Generate a temporary directory to store renamed files
+    temp_dir = "temp"
+    
+    # Rename files with leading zeros
+    for i, filename in enumerate(filenames, start=1):
+        print(f"FILENAME:,{DIR}{filename}")
+        new_filename = f"{temp_dir}/{i:05d}.jpg"
+        logger.debug('This is filename: %s', filename)
+        shutil.copy(f"{DIR}{filename}", f"{DIR}{new_filename}")
+
+    # Remove the temporary directory and files
+    shutil.rmtree(temp_dir)
+    
+    # Execute the FFmpeg command to create VIDEO
+    subprocess.call([
+        "ffmpeg", "-hide_banner", "-framerate", "5", "-i", "temp/%05d.jpg", "-c:v", "libx264",
+        "-r", "30", "-pix_fmt", "yuv420p", "-y", VIDEO
+    ])
+    
+    # Generate the image with text
+    TITLEimage = f"{DIR}{directory_name}"
+    subprocess.call([
+        "
+ChatGPT
+ffmpeg", "-i", TITLEimage,
+        "-vf", f"drawtext=text='{directory_name}':fontfile=/home/jack/fonts/freesansbold.ttf:fontsize=45:fontcolor=white:x=(w-text_w)/2:y=((h-text_h)/2)-300",
+        "-y", "static/result_image_with_text.jpg"
+    ])
+
+    # Concatenate the image with text and the video
+    subprocess.call([
+        "ffmpeg", "-loop", "1", "-i", "static/text/result_image_with_text.jpg",
+        "-vf", "fade=t=in:st=0:d=1:alpha=1, fade=t=out:st=3:d=1:alpha=1",
+        "-c:v", "libx264", "-t", "4", "-y", "static/text/result_image_with_text.mp4"
+    ])
+    
+    subprocess.call([
+        "ffmpeg", "-i", "static/text/result_image_with_text.mp4", "-i", filename,
+        "-filter_complex", "[0:v] [1:v] concat=n=2:v=1:a=0 [v]",
+        "-map", "[v]", "-t", "59", "-y", "EXP/titled.mp4"
+    ])
+    
+    random_number = subprocess.check_output(["shuf", "-i", "100-3099", "-n", "1"]).decode().strip()
+    subprocess.call([
+        "ffmpeg", "-ss", "0", "-i", "EXP/titled.mp4",
+        "-ss", random_number, "-i", MUSIC,
+        "-map", "0:v", "-map", "1:a",
+        "-c:v", "copy", "-c:a", "aac", "-shortest", "-t", "58", "-y", FINAL
+    ])
+    
+    
+    vid = "static/videos/temp.mp4"
+
+    return render_template('indexB.html', final_video=FINAL)
+
+
+DATABASE = 'image_database.db'
+STATIC_FOLDER = 'static'
+
+def create_database():
+    conn = sqlite3.connect(DATABASE)
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS image_directories
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, directory TEXT, jpg_count INT)''')
+    conn.commit()
+    conn.close()
+
+def scan_directories():
+    conn = sqlite3.connect(DATABASE)
+    c = conn.cursor()
+    for root, dirs, files in os.walk(STATIC_FOLDER):
+        jpg_count = len([file for file in files if file.endswith('.jpg')])
+        if jpg_count > 40:
+            print(root, jpg_count)
+            directory = os.path.relpath(root, STATIC_FOLDER)
+            c.execute("INSERT INTO image_directories (directory, jpg_count) VALUES (?, ?)", (directory, jpg_count))
+    conn.commit()
+    conn.close()
+
+@app.route('/update_database')
+def update_database():
+    create_database()
+    scan_directories()
+    return 'Database Updated'
+
+if __name__ == '__main__':
+    app.run(debug=True)
+```
+
+Make sure to replace the existing code with this updated version.
+user
+2] No such file or directory: 'static/milestones_resources/examin/temp/00001.jpg'           temp is in the root
+ChatGPT
+I apologize for the confusion. If you want the `temp` directory to be in the root directory, you can update the code as follows:
+
+```python
+import subprocess
+import shutil
+import os
+import sqlite3
+import random
+from flask import Flask
+import logging
+from logging.handlers import RotatingFileHandler
+import shutil
+from flask import Flask, render_template, url_for, request, redirect, flash, send_file, render_template_string
+
+app = Flask(__name__)
+# Create a logger object
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Create a formatter for the log messages
+formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]')
+
+# Create a file handler to write log messages to a file
+file_handler = RotatingFileHandler('Logs/QuickVid.log', maxBytes=10000, backupCount=1)
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(formatter)
+
+# Add the file handler to the logger
+logger.addHandler(file_handler)
+
+# Set up logging for the Flask app
+app.logger.addHandler(file_handler)
+# Create a logger object
+
+
+@app.route('/')
+def home():
+    data = render_template_string("<a href='{{ url_for('indexB') }}'>Create a Video</a><br />")
+    return data
+
+@app.route('/indexB')
+def indexB():
+    # Get the current date and time
+    current_datetime = subprocess.check_output(["date", "+%Y-%m-%d_%H-%M-%S"]).decode().strip()
+    
+    # Create a filename with the current date and time
+    filename = f"EXPERIMENT/_file_{current_datetime}.mp4"
+    
+    # Set the paths and filenames
+    #DIR = "static/milestones_resources/alien_files/"
+    DIR = "static/milestones_resources/examin/"
+    directory_name = os.path.basename(DIR.rstrip('/'))
+    MUSIC ="OLD_resources/Devil_s_Organ-Jimena_Contreras.mp3"
+    # Update VIDEO and FINAL filenames
+    VIDEO = f"EXP/{directory_name}.mp4"
+    FINAL = f"EXP/file_{current_datetime}store.mp4"
+    TExt = "TEXT TEST 12345"
+    logger.debug('This is a debug message: %s', TExt)
+    logger.debug('This is FINAL: %s', FINAL)
+    # Get all filenames in the directory
+    filenames = os.listdir(DIR)
+    logger.debug('This is filenames: %s', filenames)
+    
+    # Sort the filenames in alphabetical order
+    filenames.sort()
+    
+    # Shuffle the filenames randomly
+    random.shuffle(filenames)
+    logger.debug('This is shuffled filenames: %s', filenames)
+ 
+    # Generate a temporary directory to store renamed files
+    temp_dir = "temp"
+    
+    # Create the temporary directory in the root directory
+    temp_dir_path = os.path.join(os.getcwd(), temp_dir)
+    os.makedirs(temp_dir_path, exist_ok=True)
+    
+    # Rename files with leading zeros
+    for i, filename in enumerate(filenames, start=1):
+        print(f"FILENAME:,{DIR}{filename}")
+        new_filename = os.path.join(temp_dir_path, f"{i:05d}.jpg")
+        logger.debug('This is filename: %s', filename)
+        shutil.copy(os.path.join(DIR, filename), new_filename)
+
+    # Execute the FFmpeg command to create VIDEO
+    subprocess.call([
+        "ffmpeg", "-hide_banner", "-framerate", "5", "-i", f"{temp_dir_path}/%05d.jpg", "-c:v", "libx264",
+        "-r", "30", "-pix_fmt", "y
+ChatGPT
+uv420p", "-y", VIDEO
+    ])
+    
+    # Remove the temporary directory and files
+    shutil.rmtree(temp_dir_path)
+    
+    # Generate the image with text
+    TITLEimage = os.path.join(DIR, directory_name)
+    subprocess.call([
+        "ffmpeg", "-i", TITLEimage,
+        "-vf", f"drawtext=text='{directory_name}':fontfile=/home/jack/fonts/freesansbold.ttf:fontsize=45:fontcolor=white:x=(w-text_w)/2:y=((h-text_h)/2)-300",
+        "-y", "static/result_image_with_text.jpg"
+    ])
+
+    # Concatenate the image with text and the video
+    subprocess.call([
+        "ffmpeg", "-loop", "1", "-i", "static/text/result_image_with_text.jpg",
+        "-vf", "fade=t=in:st=0:d=1:alpha=1, fade=t=out:st=3:d=1:alpha=1",
+        "-c:v", "libx264", "-t", "4", "-y", "static/text/result_image_with_text.mp4"
+    ])
+    
+    subprocess.call([
+        "ffmpeg", "-i", "static/text/result_image_with_text.mp4", "-i", filename,
+        "-filter_complex", "[0:v] [1:v] concat=n=2:v=1:a=0 [v]",
+        "-map", "[v]", "-t", "59", "-y", "EXP/titled.mp4"
+    ])
+    
+    random_number = subprocess.check_output(["shuf", "-i", "100-3099", "-n", "1"]).decode().strip()
+    subprocess.call([
+        "ffmpeg", "-ss", "0", "-i", "EXP/titled.mp4",
+        "-ss", random_number, "-i", MUSIC,
+        "-map", "0:v", "-map", "1:a",
+        "-c:v", "copy", "-c:a", "aac", "-shortest", "-t", "58", "-y", FINAL
+    ])
+    
+    vid = "static/videos/temp.mp4"
+
+    return render_template('indexB.html', final_video=FINAL)
+
+
+DATABASE = 'image_database.db'
+STATIC_FOLDER = 'static'
+
+def create_database():
+    conn = sqlite3.connect(DATABASE)
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS image_directories
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, directory TEXT, jpg_count INT)''')
+    conn.commit()
+    conn.close()
+
+def scan_directories():
+    conn = sqlite3.connect(DATABASE)
+    c = conn.cursor()
+    for root, dirs, files in os.walk(STATIC_FOLDER):
+        jpg_count = len([file for file in files if file.endswith('.jpg')])
+        if jpg_count > 40:
+            print(root, jpg_count)
+            directory = os.path.relpath(root, STATIC_FOLDER)
+            c.execute("INSERT INTO image_directories (directory, jpg_count) VALUES (?, ?)", (directory, jpg_count))
+    conn.commit()
+    conn.close()
+
+@app.route('/update_database')
+def update_database():
+    create_database()
+    scan_directories()
+    return 'Database Updated'
+
+if __name__ == '__main__':
+    app.run(debug=True)
+```
+
+This updated code will create the `temp` directory in the root directory.
+user
+Linux stopped showing image icons
+ChatGPT
+If Linux has stopped showing image icons, it could be due to various reasons. Here are a few possible solutions to try:
+
+1. Clear the thumbnail cache: Thumbnails are small images generated by the file manager to represent image files. Sometimes, issues with the thumbnail cache can cause image icons to stop displaying. You can try clearing the thumbnail cache to see if it resolves the issue. Open a terminal and run the following command:
+   
+   ```bash
+   rm -r ~/.cache/thumbnails/*
+   ```
+
+   This command will remove all the thumbnail cache files. After executing the command, restart your file manager or log out and log back in to refresh the icons.
+
+2. Check the file associations: Ensure that the file associations for image files are correctly set. Right-click on an image file, select "Properties" or "Open with," and make sure the default application for opening image files is set correctly (e.g., an image viewer like Eye of GNOME, GIMP, etc.). If the association is incorrect, you can change it to the desired image viewer.
+
+3. Reset icon theme: If the issue is specific to the icon theme you are using, resetting it to the default theme or selecting a different icon theme may help. Open the system settings or appearance settings, navigate to the "Icons" or "Themes" section, and choose a different icon theme or reset it to the default theme.
+
+4. Verify image viewer installation: Ensure that the image viewer application is properly installed on your system. You can try reinstalling the image viewer or installing an alternative image viewer to see if it resolves the issue.
+
+5. Check disk space: Insufficient disk space can sometimes cause issues with icon rendering. Make sure you have enough free space on your system's storage device. If the disk space is running low, consider freeing up space by deleting unnecessary files.
+
+6. Restart the file manager: Sometimes, restarting the file manager can resolve issues with icons not displaying. You can restart the file manager by logging out and logging back in or by restarting the system.
+
+If none of these solutions work, please provide more details about your Linux distribution, desktop environment, and any recent changes or updates you made to your system.
+

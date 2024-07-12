@@ -1,0 +1,122 @@
+Database Search Functionality
+user
+import sqlite3
+from sys import argv
+from flask import Blueprint
+search_db_bp = Blueprint('search_db', __name__) 
+import datetime
+debug_directory = "Logs"
+if not os.path.exists(debug_directory):
+    # If it doesn't exist, create it
+    os.mkdir(debug_directory)
+    print(f"The '{debug_directory}' directory has been created.")
+else:
+    print(f"The '{debug_directory}' directory already exists.")
+
+def logit(argvs):
+    argv = argvs   
+    log_file = debug_directory+"/app_log.txt"  # Replace with the actual path to your log file
+    timestamp = datetime.datetime.now().strftime("%A_%b-%d-%Y_%H-%M-%S")
+    with open(log_file, "a") as log:
+        log.write(f"{timestamp}: {argv}\n")
+        
+
+@search_db_bp.route('/search_db', methods=['GET', 'POST'])
+def search_db():
+    if request.form['text']:
+        search_term = request.form['text']
+        conn = sqlite3.connect('/home/jack/Desktop/EDITOR/search_db/dialogueEXP.db')
+        cursor = conn.cursor()
+        cnt = 0
+        data=[]
+        # Define the search terms
+        search_terms = search_term.split(",")  # Split the input string by comma to get individual search terms
+        # Construct the WHERE clause for the SQL query to filter rows based on all search terms
+        where_conditions = []
+        for term in search_terms:
+            where_conditions.append(f"user_ChatGPT_PAIR LIKE '%{term}%'")
+        where_clause = " AND ".join(where_conditions)
+        # Execute the SELECT query with the constructed WHERE clause
+        query = f"SELECT ROWID,* FROM dialogue WHERE {where_clause}"
+        rows = cursor.execute(query)
+        # Iterate over the resulting rows and print the ROWID and user_ChatGPT_PAIR column
+        for row in rows:
+            cnt += 1
+            data.append(f'{row[0]} {row[2]} {cnt}')
+        return render_template('search_db.html', data= data) #data =    data # Remove the extra double quote at the end
+    return render_template('search_db.html')  # Create this template as described below
+    # Close the connection
+    conn.close()
+ does hat ok good ?
+ChatGPT
+Your code looks good overall, but there are a few improvements and corrections that can be made:
+
+1. **Import Statements**: You're missing some import statements for `os` and `request`. Make sure to import them if they're being used.
+
+2. **Logging**: You've defined a logging function `logit()` but it's not being used. You should call this function to log events such as successful directory creation or any errors that occur.
+
+3. **Error Handling**: You should handle potential errors that may occur during database operations or file operations. For example, if the connection to the database fails, you should catch the exception and log it.
+
+4. **Template Creation**: You mentioned creating a template named `search_db.html`, make sure to create this template file in your Flask application's templates directory.
+
+5. **Returning Inside Loop**: You're returning the template inside the loop where you fetch rows from the database. It's better to fetch all the data first, then close the connection, and finally return the template with the fetched data.
+
+Here's the revised code with these improvements:
+
+```python
+import sqlite3
+import os
+import datetime
+from flask import Blueprint, request, render_template
+
+search_db_bp = Blueprint('search_db', __name__) 
+debug_directory = "Logs"
+
+# Logging function to log events
+def logit(argvs):
+    argv = argvs   
+    log_file = debug_directory + "/app_log.txt"  # Replace with the actual path to your log file
+    timestamp = datetime.datetime.now().strftime("%A_%b-%d-%Y_%H-%M-%S")
+    with open(log_file, "a") as log:
+        log.write(f"{timestamp}: {argv}\n")
+
+# Check and create debug directory if not exists
+if not os.path.exists(debug_directory):
+    os.mkdir(debug_directory)
+    logit(f"The '{debug_directory}' directory has been created.")
+else:
+    logit(f"The '{debug_directory}' directory already exists.")
+
+@search_db_bp.route('/search_db', methods=['GET', 'POST'])
+def search_db():
+    if request.method == 'POST' and 'text' in request.form:
+        search_term = request.form['text']
+        conn = sqlite3.connect('/home/jack/Desktop/EDITOR/search_db/dialogueEXP.db')
+        cursor = conn.cursor()
+        data = []
+        try:
+            # Define the search terms
+            search_terms = search_term.split(",")  
+            # Construct the WHERE clause for the SQL query
+            where_conditions = []
+            for term in search_terms:
+                where_conditions.append(f"user_ChatGPT_PAIR LIKE '%{term}%'")
+            where_clause = " AND ".join(where_conditions)
+            # Execute the SELECT query
+            query = f"SELECT ROWID,* FROM dialogue WHERE {where_clause}"
+            rows = cursor.execute(query)
+            # Iterate over the resulting rows and append to data list
+            for row in rows:
+                data.append(f'{row[0]} {row[2]}')
+        except sqlite3.Error as e:
+            logit(f"SQLite error: {e}")
+        finally:
+            # Close the connection
+            conn.close()
+        return render_template('search_db.html', data=data)
+    return render_template('search_db.html')  
+
+```
+
+Make sure to create the `search_db.html` template file in your templates directory with the appropriate HTML code to display the data.
+

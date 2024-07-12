@@ -1,0 +1,3015 @@
+-
+
+!pwd
+
+!http-server /home/jack/Desktop/TENSORFLOW/models/magenta_arbitrary-image-stylization-v1-256_2/
+
+import os
+import tensorflow as tf
+# Load compressed models from tensorflow_hub
+os.environ['TFHUB_MODEL_LOAD_FORMAT'] = 'COMPRESSED'
+import IPython.display as display
+
+import matplotlib.pyplot as plt
+
+
+
+brightness 7
+
+import matplotlib as mpl
+mpl.rcParams['figure.figsize'] = (12, 12)
+mpl.rcParams['axes.grid'] = False
+
+import numpy as np
+import PIL.Image
+import time
+import functools
+
+def tensor_to_image(tensor):
+    tensor = tensor*255
+    tensor = np.array(tensor, dtype=np.uint8)
+    if np.ndim(tensor)>3:
+        assert tensor.shape[0] == 1
+        tensor = tensor[0]
+    return PIL.Image.fromarray(tensor)
+def load_img(path_to_img):
+    max_dim = 512
+    img = tf.io.read_file(path_to_img)
+    img = tf.image.decode_image(img, channels=3)
+    img = tf.image.convert_image_dtype(img, tf.float32)
+
+    shape = tf.cast(tf.shape(img)[:-1], tf.float32)
+    long_dim = max(shape)
+    scale = max_dim / long_dim
+
+    new_shape = tf.cast(shape * scale, tf.int32)
+
+    img = tf.image.resize(img, new_shape)
+    img = img[tf.newaxis, :]
+    return img
+def imshow(image, title=None):
+    if len(image.shape) > 3:
+        image = tf.squeeze(image, axis=0)
+
+    plt.imshow(image)
+    if title:
+        plt.title(title)
+
+from tensorflow.python.ops.numpy_ops import np_config
+np_config.enable_numpy_behavior()
+from PIL import Image
+import random
+import os
+
+def prep_content(content):
+    PI = Image.open(content)
+    PI = PI.resize((720,480), Image.NEAREST)
+    CFilename = os.path.basename(content)
+    PI.save("preped_images/Content_"+CFilename)
+    Content_data="preped_images/Content_"+CFilename
+    return Content_data
+    
+def prep_style(style):
+    PI = Image.open(style)
+    PI = PI.resize((720,480), Image.NEAREST)
+    SFilename = os.path.basename(style)
+    PI.save("preped_images/Style_"+SFilename)
+    Style_data="preped_images/Style_"+SFilename
+    return Style_data    
+
+
+path = r"/home/jack/Desktop/Imagedata/0-original-images/"
+base_image = random.choice([
+    x for x in os.listdir(path)
+    if os.path.isfile(os.path.join(path, x))
+])
+content=(path+base_image)
+print("content"+path+base_image)
+
+#content = "/home/jack/Pictures/1022362.jpg"
+#content = "/home/jack/Desktop/TENSORFLOW/images/default-file-q4.png"
+
+path = r"/home/jack/Desktop/Imagedata/4-publish-images/"
+base_image = random.choice([
+    x for x in os.listdir(path)
+    if os.path.isfile(os.path.join(path, x))
+])
+style=(path+base_image)
+print("style"+path+base_image)
+#style = "/home/jack/Pictures/JuanjoCristianitarotdeck/juanjo-cristiani-11.png"
+#style = "/home/jack/Pictures/0_.jpg"
+#print (prep_style(style))
+
+content_image = load_img(prep_content(content))
+style_image = load_img(prep_style(style))
+
+print(content_image.size)
+print(style_image.size)
+plt.subplot(1, 2, 1)
+imshow(content_image, 'Content Image')
+
+plt.subplot(1, 2, 2)
+imshow(style_image, 'Style Image')
+
+
+from PIL import Image
+import tensorflow as tf
+import tensorflow_hub as hub
+import time
+hub_model = hub.load('http://localhost:8080/Models/magenta_arbitrary-image-stylization-v1-256_2.tar.gz')
+#hub_model = hub.load('http://localhost:8080/Models/magenta_arbitrary-image-stylization-v1-256_fp16_transfer_1.tflite')
+#hub_model = hub.load("models/magenta_arbitrary-image-stylization-v1-256_2")
+stylized_image = hub_model(tf.constant(content_image), tf.constant(style_image))[0]
+im = tensor_to_image(stylized_image)
+timestr = time.strftime("%Y%m%d-%H%M%S")
+savefile = "images/"+timestr+".jpg"
+im.save(savefile)
+print(im.size)
+im
+
+iml = im.resize((720,480), Image.NEAREST)
+iml.save("720x480/temp.jpg")
+iml
+
+from PIL import Image, ImageEnhance
+im = Image.open("720x480/temp.jpg")
+enhancer = ImageEnhance.Sharpness(im)
+factor = 1.5
+im_s_1 = enhancer.enhance(factor)
+im_s_1.save('720x480/Sharpened-temp.jpg');
+im_s_1
+
+#!/home/jack/miniconda3/envs/cloned_base/bin/python
+import numpy as np
+import random
+from random import randint
+from PIL import Image, ImageDraw, ImageFont, ImageChops, ImageFilter 
+import os
+import sys
+import markovify
+import twython
+from twython import Twython
+import time
+import shutil
+from randtext import randTXT
+STR = randTXT()
+Hash = ["#AIart #Tensorflow #twitme #Python #100DaysOfCode\n","#tensorflow #styletransfer #PythonGraphics #PIL #PythonImageLibrary\n","#NFTartist #NFTProject #NEARnft #nearNFTs \n","#NFT #NFTs #NFTCommunity #NFTdrop #nftart\n","#CreativeCoding  #AI #genart #p5js #Generative\n","#twitme #Python #100DaysOfCode\n","#Python #100DaysOfCode #PythonBots #codefor30days\n" ]
+hashnum = randint(0,len(Hash)-1)
+hashs =Hash[0]
+# add the hash to STR generated with randTXT()
+STR = hashs
+STR= STR[:180]
+print(STR)
+# Open background image and work out centre
+x = 720//2
+y = 480//2
+
+# The text we want to add
+#text = "NFT TwitterBot Project"
+text = STR
+# Create font
+font = ImageFont.truetype('/snap/gnome-3-38-2004/99/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 15)
+
+#nap=randint(10,400)
+#time.sleep(nap)
+'''
+path = r"/home/jack/Desktop/Imagedata/4-publish-images/"
+base_image = random.choice([
+    x for x in os.listdir(path)
+    if os.path.isfile(os.path.join(path, x))
+])'''
+#filename1='images/result.png'
+filename1='720x480/Sharpened-temp.jpg'
+
+bg = Image.open(filename1).convert('RGB')
+x = bg.width//2
+y = bg.height//2
+src_path = filename1
+#dst_path = "/home/jack/Desktop/Imagedata/3-resource_images/"
+#shutil.move(src_path, dst_path)
+
+# The text we want to add
+text=STR[:249]
+print("len(text): ",len(text))
+# Create font
+font = ImageFont.truetype('/snap/gnome-3-38-2004/99/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 15)
+
+# Create piece of canvas to draw text on and blur
+blurred = Image.new('RGBA', bg.size)
+draw = ImageDraw.Draw(blurred)
+CH = randint(0,1)
+if CH == 0:COLor = ["white","black"]
+elif CH == 1:COLor = ["black","white"]  
+draw.text(xy=(x-10,y+220), text=text, fill=COLor[0], font=font, anchor='mm')
+draw.text(xy=(x-11,y+221), text=text, fill=COLor[0], font=font, anchor='mm')
+draw.text(xy=(x-12,y+219), text=text, fill=COLor[0], font=font, anchor='mm')
+draw.text(xy=(x-10,y+218), text=text, fill=COLor[0], font=font, anchor='mm')
+blurred = blurred.filter(ImageFilter.BoxBlur(2))
+
+# Paste soft text onto background
+bg.paste(blurred,blurred)
+
+# Draw on sharp text
+draw = ImageDraw.Draw(bg)
+draw.text(xy=(x-10,y+220), text=text, fill=COLor[1], font=font, anchor='mm')
+postage = ["perferations.png","perferations+.png","frames.png","usa-perferations.png","usar-perferations.png","usal-perferations.png"]
+Num = randint( 0, len(postage)-1)
+BOARDER ="overlays/frame-lite.png"
+#BOARDER ="overlays/nouveau-black-frame1.png"
+#BOARDER = "overlays/"+postage[Num]
+mask=Image.open(BOARDER).convert('RGBA') 
+bg.paste(mask, (0,0), mask=mask)
+bg.save('images/useresult.png')
+#removed keys for privacy reasons
+CONSUMER_KEY = 'APIkey()[0]'
+CONSUMER_SECRET = 'APIkey()[1]'
+ACCESS_KEY = 'APIkey()[2]'
+ACCESS_SECRET = 'APIkey()[3]'
+
+twitter = Twython(CONSUMER_KEY, CONSUMER_SECRET, ACCESS_KEY, ACCESS_SECRET)
+PATH = "images/useresult.png"
+timestr = time.strftime("%Y%m%d-%H%M%S")
+print (timestr+".png")
+
+#python program to check if a directory exists
+import os
+path = "posted"
+# Check whether the specified path exists or not
+isExist = os.path.exists(path)
+if not isExist:
+    # Create a new directory because it does not exist
+    os.makedirs(path)
+    print("The new directory is created!")
+shutil.copy(PATH, "posted/"+timestr+".png")
+# 1 , 2, 3, 12, 5, 15, 8, 6
+#photo = open('/home/jack/Desktop/deep-dream-generator/notebooks/images/'+file_list[rnd]+'.jpg','rb')
+
+photo = open(PATH,'rb')
+#photo = open("images/waves1.gif","rb")
+#response = twitter.upload_media(media=photo)
+#twitter.update_status(status=STR, media_ids=[response['media_id']])
+
+im = Image.open(PATH)
+im
+
+response = twitter.upload_media(media=photo)
+twitter.update_status(status=STR, media_ids=[response['media_id']])
+
+!ls st*
+
+#!/home/jack/miniconda3/envs/cloned_base/bin/python
+from PIL import Image, ImageDraw, ImageFont, ImageChops, ImageFilter, ImageEnhance
+from tensorflow.python.ops.numpy_ops import np_config
+np_config.enable_numpy_behavior()
+import random
+import os
+import numpy as np
+from random import randint
+import sys
+import markovify
+import twython
+from twython import Twython
+import time
+import shutil
+from randtext import randTXT
+import tensorflow as tf
+import tensorflow_hub as hub
+import os
+import tensorflow as tf
+# Load compressed models from tensorflow_hub
+os.environ['TFHUB_MODEL_LOAD_FORMAT'] = 'COMPRESSED'
+import IPython.display as display
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+mpl.rcParams['figure.figsize'] = (12, 12)
+mpl.rcParams['axes.grid'] = False
+import PIL.Image
+import cv2
+from APIkey import APIkey
+
+def tensor_to_image(tensor):
+    tensor = tensor*255
+    tensor = np.array(tensor, dtype=np.uint8)
+    if np.ndim(tensor)>3:
+        assert tensor.shape[0] == 1
+        tensor = tensor[0]
+    return PIL.Image.fromarray(tensor)
+def load_img(path_to_img):
+    max_dim = 512
+    img = tf.io.read_file(path_to_img)
+    img = tf.image.decode_image(img, channels=3)
+    img = tf.image.convert_image_dtype(img, tf.float32)
+
+    shape = tf.cast(tf.shape(img)[:-1], tf.float32)
+    long_dim = max(shape)
+    scale = max_dim / long_dim
+
+    new_shape = tf.cast(shape * scale, tf.int32)
+
+    img = tf.image.resize(img, new_shape)
+    img = img[tf.newaxis, :]
+    return img
+def imshow(image, title=None):
+    if len(image.shape) > 3:
+        image = tf.squeeze(image, axis=0)
+
+    plt.imshow(image)
+    if title:
+        plt.title(title)
+def prep_content(content):
+    PI = Image.open(content)
+    PI = PI.resize((720,480), Image.NEAREST)
+    CFilename = os.path.basename(content)
+    PI.save("preped_images/Content_"+CFilename)
+    Content_data="preped_images/Content_"+CFilename
+    return Content_data
+    
+def prep_style(style):
+    PI = Image.open(style)
+    PI = PI.resize((720,480), Image.NEAREST)
+    SFilename = os.path.basename(style)
+    PI.save("preped_images/Style_"+SFilename)
+    Style_data="preped_images/Style_"+SFilename
+    return Style_data    
+
+
+#path = r"/home/jack/Desktop/Imagedata/vintage-bottle-labels/"
+#path = r"styles/"
+path = r"AI/"
+base_image = random.choice([
+    x for x in os.listdir(path)
+    if os.path.isfile(os.path.join(path, x))
+])
+content=(path+base_image)
+print("content"+path+base_image)
+
+#content = "/home/jack/Pictures/1022362.jpg"
+
+
+#path = r"/home/jack/Desktop/Imagedata/4-publish-images/"
+#path = r"/home/jack/Desktop/Imagedata/vintage-advertisments/"
+#path = r"/home/jack/Desktop/Imagedata/vintage-clothing-patterns/"
+#path = r"/home/jack/Desktop/Imagedata/textured-images/"
+#path = r"/home/jack/Desktop/Imagedata/jackpictures/"
+#path = r"styles-base/"
+path = r"AI/"
+base_image = random.choice([
+    x for x in os.listdir(path)
+    if os.path.isfile(os.path.join(path, x))
+])
+style=(path+base_image)
+print("style"+path+base_image)
+#style = "/home/jack/Pictures/1022362.jpg
+
+content_image = load_img(prep_content(content))
+style_image = load_img(prep_style(style))
+# A node server http-server was started in Directory before the "Models" directory
+hub_model = hub.load('http://localhost:8080/Models/magenta_arbitrary-image-stylization-v1-256_2.tar.gz')
+#hub_model = hub.load('http://localhost:8080/Models/magenta_arbitrary-image-stylization-v1-256_fp16_transfer_1.tflite')
+stylized_image = hub_model(tf.constant(content_image), tf.constant(style_image))[0]
+im = tensor_to_image(stylized_image)
+timestr = time.strftime("%Y%m%d-%H%M%S")
+savefile = "images/"+timestr+".jpg"
+im.save(savefile)
+#print(im.size)
+#im
+#iml = im.resize((720,480), Image.NEAREST)
+
+iml = im.resize((480,640), Image.NEAREST)
+
+iml.save("720x480/temp.jpg")
+#img = cv2.imread('720x480/temp.jpg')
+#im_color = cv2.applyColorMap(img, cv2.COLORMAP_HSV)
+#cv2.imwrite('720x480/temp.jpg', im_color)
+
+im = Image.open("720x480/temp.jpg")
+enhancer = ImageEnhance.Sharpness(im)
+factor = 1.5
+im_s_1 = enhancer.enhance(factor)
+
+
+factor = 0.5 #decrease constrast
+enhancer = ImageEnhance.Contrast(im_s_1)
+
+factor = 1.5 #increase contrast
+im_output = enhancer.enhance(factor)
+im_output.save('720x480/Sharpened-temp.jpg');
+
+
+STR = randTXT()
+#Hash = ["#AIart #Tensorflow #twitme #Python #100DaysOfCode\n","#tensorflow #styletransfer #PythonGraphics #PIL #PythonImageLibrary\n","#NFTartist #NFTProject #NEARnft #nearNFTs \n","#NFT #NFTs #NFTCommunity #NFTdrop #nftart\n","#CreativeCoding  #AI #genart #p5js #Generative\n","#twitme #Python #100DaysOfCode\n","#Python #100DaysOfCode #PythonBots #codefor30days\n" ]
+#short
+Hash = ["#AIart #Tensorflow #twitme #Python", "#100DaysOfCode #tensorflow #styletransfer", "#PythonGraphics #PIL #PythonImageLibrary","#NFTartist #NFTProject #NEARnft", "#nearNFTs #NFT #NFTs #NFTCommunity", "#NFTdrop #nftart #CreativeCoding  #AI", "#genart #p5js #Generative","#twitme #Python #100DaysOfCode","#Python #100DaysOfCode #codefor30days" ]
+
+
+hashnum = randint(0,len(Hash)-1)
+hashs =Hash[0]
+# add the hash to STR generated with randTXT()
+STR = hashs
+STR= "\n\n\n\n\n\n\n\n"+STR[:180]
+print(STR)
+# Open background image and work out centre
+x = 720//2
+y = 480//2
+
+# The text we want to add
+#text = "NFT TwitterBot Project"
+text = STR
+# Create font
+font = ImageFont.truetype('/snap/gnome-3-38-2004/99/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 15)
+
+#nap=randint(10,400)
+#time.sleep(nap)
+'''
+path = r"/home/jack/Desktop/Imagedata/4-publish-images/"
+base_image = random.choice([
+    x for x in os.listdir(path)
+    if os.path.isfile(os.path.join(path, x))
+])'''
+
+
+
+
+#filename1='images/result.png'
+# filename1='720x480/Sharpened-temp.jpg'
+
+
+# no processing
+filename1='720x480/temp.jpg'
+
+
+
+
+bg = Image.open(filename1).convert('RGB')
+x = bg.width//2
+y = bg.height//2
+src_path = filename1
+#dst_path = "/home/jack/Desktop/Imagedata/3-resource_images/"
+#shutil.move(src_path, dst_path)
+
+# The text we want to add
+text=STR[:249]
+print("len(text): ",len(text))
+# Create font
+font = ImageFont.truetype('/snap/gnome-3-38-2004/99/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 15)
+
+# Create piece of canvas to draw text on and blur
+blurred = Image.new('RGBA', bg.size)
+draw = ImageDraw.Draw(blurred)
+CH = randint(0,1)
+if CH == 0:COLor = ["white","black"]
+elif CH == 1:COLor = ["black","white"]  
+draw.text(xy=(x-10,y+220), text=text, fill=COLor[0], font=font, anchor='mm')
+draw.text(xy=(x-11,y+221), text=text, fill=COLor[0], font=font, anchor='mm')
+draw.text(xy=(x-12,y+219), text=text, fill=COLor[0], font=font, anchor='mm')
+draw.text(xy=(x-10,y+218), text=text, fill=COLor[0], font=font, anchor='mm')
+blurred = blurred.filter(ImageFilter.BoxBlur(2))
+
+# Paste soft text onto background
+bg.paste(blurred,blurred)
+
+# Draw on sharp text
+draw = ImageDraw.Draw(bg)
+draw.text(xy=(x-10,y+220), text=text, fill=COLor[1], font=font, anchor='mm')
+postage = ["perferations.png","perferations+.png","frames.png","usa-perferations.png","usar-perferations.png","usal-perferations.png"]
+Num = randint( 0, len(postage)-1)
+#BOARDER ="overlays/frame-lite.png"
+BOARDER ="overlays/640.png"
+#BOARDER ="overlays/nouveau-black-frame1.png"
+#BOARDER = "overlays/"+postage[Num]
+mask=Image.open(BOARDER).convert('RGBA') 
+bg.paste(mask, (0,0), mask=mask)
+
+#bg = bg.filter(ImageFilter.EDGE_ENHANCE)
+bg = bg.filter(ImageFilter.DETAIL)
+bg = ImageEnhance.Color(bg ).enhance(1.75)
+bg.save('images/useresult.png')
+#img = cv2.imread('images/useresult.png')
+#im_color = cv2.applyColorMap(img, cv2.COLORMAP_HSV)
+#cv2.imwrite('images/useresult.png', im_color)
+
+#removed keys for privacy reasons
+
+CONSUMER_KEY = APIkey()[0]
+CONSUMER_SECRET = APIkey()[1]
+ACCESS_KEY = APIkey()[2]
+ACCESS_SECRET = APIkey()[3]
+
+twitter = Twython(CONSUMER_KEY, CONSUMER_SECRET, ACCESS_KEY, ACCESS_SECRET)
+
+twitter = Twython(CONSUMER_KEY, CONSUMER_SECRET, ACCESS_KEY, ACCESS_SECRET)
+PATH = "images/useresult.png"
+timestr = time.strftime("%Y%m%d-%H%M%S")
+#print (timestr+".png")
+
+#python program to check if a directory exists
+import os
+path = "posted"
+# Check whether the specified path exists or not
+isExist = os.path.exists(path)
+if not isExist:
+    # Create a new directory because it does not exist
+    os.makedirs(path)
+    print("The new directory is created!")
+shutil.copy(PATH, "posted/"+timestr+".png")
+# 1 , 2, 3, 12, 5, 15, 8, 6
+#photo = open('/home/jack/Desktop/deep-dream-generator/notebooks/images/'+file_list[rnd]+'.jpg','rb')
+
+photo = open(PATH,'rb')
+#photo = open("images/waves1.gif","rb")
+#response = twitter.upload_media(media=photo)
+#twitter.update_status(status=STR, media_ids=[response['media_id']])
+im = Image.open(PATH)
+STR0 = randTXT()
+STRu= STR0[:180]
+print(STRu)
+im
+
+
+
+PATH = "images/useresult.png"
+img = Image.open('images/useresult.png')
+#img = cv2.imread(PATH,0)
+brt = 100
+sh = 16
+img = brightness_enhancer(img, brt)
+out = sharpness_enhancer(img, sh)
+out
+
+out.save('images/useresult.png')
+
+response = twitter.upload_media(media=photo)
+twitter.update_status(status=STRu, media_ids=[response['media_id']])
+
+
+
+video = open('video/post-to-twitter.mp4', 'rb')
+response = twitter.upload_video(media=video, media_type='video/mp4')
+twitter.update_status(status=STRu+'\nusing:ffmpeg and Gimp', media_ids=[response['media_id']])
+
+import numpy as np
+import cv2
+import matplotlib.pyplot as plt
+from PIL import Image, ImageEnhance
+
+def brightness_enhancer(img, br):
+ #img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+ #img = Image.fromarray(img)
+ enhancer = ImageEnhance.Brightness(img)
+ factor = 128/br
+ return enhancer.enhance(factor)
+
+def contrast_enhancer(img, ct):
+ #img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+ #img = Image.fromarray(img)
+ enhancer = ImageEnhance.Contrast(img)
+ factor = 24/ct
+ return enhancer.enhance(factor)
+
+def sharpness_enhancer(img, sh):
+ #img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+ #img = Image.fromarray(img)
+ enhancer = ImageEnhance.Sharpness(img)
+ factor = 4/sh
+ return enhancer.enhance(factor)
+
+def color_enhancer(img):
+ #img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+ #img = Image.fromarray(img)
+ enhancer = ImageEnhance.Color(img)
+ factor = 0.5 #enhancement of the image
+ return enhancer.enhance(factor)
+
+
+
+
+
+PATH = "images/useresult.png"
+img = Image.open('images/useresult.png')
+#img = cv2.imread(PATH,0)
+brt = 100
+sh = 4
+img = brightness_enhancer(img, brt)
+out = sharpness_enhancer(img, sh)
+out
+#img
+
+PATH = "images/useresult.png"
+img = Image.open('images/useresult.png')
+sh = 4
+out = sharpness_enhancer(img, sh)
+out
+
+PATH = "images/useresult.png"
+im = Image.open('images/useresult.png')
+im_out = ImageEnhance.Color(im).enhance(1.75)
+#im_out.write('out.jpg')
+im_out.save('images/useresult.png')
+im_out
+
+
+
+
+
+!python3 AutoImageCrawler/main.py [--skip true] [--threads 4] [--google true] [--naver true] [--full false] [--face false] [--no_gui auto] [--limit 0]
+
+!ls -d */
+
+from AutoImageCrawler import *
+import AutoImageCrawler
+dir (AutoImageCrawler)
+
+!python AutoImageCrawler/main.py [--skip true] [--threads 4] [--google true] [--naver true] [--full false] [--face false] [--no_gui auto] [--limit 0]
+
+!ls /home/jack/miniconda3/envs/cloned_base/lib/python3.9/site-packages
+
+# %load AutoImageCrawler/main.py
+"""
+Copyright 2018 YoongiKim
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+"""
+
+import os
+import requests
+import shutil
+from multiprocessing import Pool
+import argparse
+from collect_links import CollectLinks
+import imghdr
+import base64
+from pathlib import Path
+import random
+
+
+class Sites:
+    GOOGLE = 1
+    NAVER = 2
+    GOOGLE_FULL = 3
+    NAVER_FULL = 4
+
+    @staticmethod
+    def get_text(code):
+        if code == Sites.GOOGLE:
+            return 'google'
+        elif code == Sites.NAVER:
+            return 'naver'
+        elif code == Sites.GOOGLE_FULL:
+            return 'google'
+        elif code == Sites.NAVER_FULL:
+            return 'naver'
+
+    @staticmethod
+    def get_face_url(code):
+        if code == Sites.GOOGLE or Sites.GOOGLE_FULL:
+            return "&tbs=itp:face"
+        if code == Sites.NAVER or Sites.NAVER_FULL:
+            return "&face=1"
+
+
+class AutoCrawler:
+    def __init__(self, skip_already_exist=True, n_threads=4, do_google=True, do_naver=True, download_path='download',
+                 full_resolution=False, face=False, no_gui=False, limit=0, proxy_list=None):
+        """
+        :param skip_already_exist: Skips keyword already downloaded before. This is needed when re-downloading.
+        :param n_threads: Number of threads to download.
+        :param do_google: Download from google.com (boolean)
+        :param do_naver: Download from naver.com (boolean)
+        :param download_path: Download folder path
+        :param full_resolution: Download full resolution image instead of thumbnails (slow)
+        :param face: Face search mode
+        :param no_gui: No GUI mode. Acceleration for full_resolution mode.
+        :param limit: Maximum count of images to download. (0: infinite)
+        :param proxy_list: The proxy list. Every thread will randomly choose one from the list.
+        """
+
+        self.skip = skip_already_exist
+        self.n_threads = n_threads
+        self.do_google = do_google
+        self.do_naver = do_naver
+        self.download_path = download_path
+        self.full_resolution = full_resolution
+        self.face = face
+        self.no_gui = no_gui
+        self.limit = limit
+        self.proxy_list = proxy_list if proxy_list and len(proxy_list) > 0 else None
+
+        os.makedirs('./{}'.format(self.download_path), exist_ok=True)
+
+    @staticmethod
+    def all_dirs(path):
+        paths = []
+        for dir in os.listdir(path):
+            if os.path.isdir(path + '/' + dir):
+                paths.append(path + '/' + dir)
+
+        return paths
+
+    @staticmethod
+    def all_files(path):
+        paths = []
+        for root, dirs, files in os.walk(path):
+            for file in files:
+                if os.path.isfile(path + '/' + file):
+                    paths.append(path + '/' + file)
+
+        return paths
+
+    @staticmethod
+    def get_extension_from_link(link, default='jpg'):
+        splits = str(link).split('.')
+        if len(splits) == 0:
+            return default
+        ext = splits[-1].lower()
+        if ext == 'jpg' or ext == 'jpeg':
+            return 'jpg'
+        elif ext == 'gif':
+            return 'gif'
+        elif ext == 'png':
+            return 'png'
+        else:
+            return default
+
+    @staticmethod
+    def validate_image(path):
+        ext = imghdr.what(path)
+        if ext == 'jpeg':
+            ext = 'jpg'
+        return ext  # returns None if not valid
+
+    @staticmethod
+    def make_dir(dirname):
+        current_path = os.getcwd()
+        path = os.path.join(current_path, dirname)
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+    @staticmethod
+    def get_keywords(keywords_file='keywords.txt'):
+        # read search keywords from file
+        with open(keywords_file, 'r', encoding='utf-8-sig') as f:
+            text = f.read()
+            lines = text.split('\n')
+            lines = filter(lambda x: x != '' and x is not None, lines)
+            keywords = sorted(set(lines))
+
+        print('{} keywords found: {}'.format(len(keywords), keywords))
+
+        # re-save sorted keywords
+        with open(keywords_file, 'w+', encoding='utf-8') as f:
+            for keyword in keywords:
+                f.write('{}\n'.format(keyword))
+
+        return keywords
+
+    @staticmethod
+    def save_object_to_file(object, file_path, is_base64=False):
+        try:
+            with open('{}'.format(file_path), 'wb') as file:
+                if is_base64:
+                    file.write(object)
+                else:
+                    shutil.copyfileobj(object.raw, file)
+        except Exception as e:
+            print('Save failed - {}'.format(e))
+
+    @staticmethod
+    def base64_to_object(src):
+        header, encoded = str(src).split(',', 1)
+        data = base64.decodebytes(bytes(encoded, encoding='utf-8'))
+        return data
+
+    def download_images(self, keyword, links, site_name, max_count=0):
+        self.make_dir('{}/{}'.format(self.download_path, keyword.replace('"', '')))
+        total = len(links)
+        success_count = 0
+
+        if max_count == 0:
+            max_count = total
+
+        for index, link in enumerate(links):
+            if success_count >= max_count:
+                break
+
+            try:
+                print('Downloading {} from {}: {} / {}'.format(keyword, site_name, success_count + 1, max_count))
+
+                if str(link).startswith('data:image/jpeg;base64'):
+                    response = self.base64_to_object(link)
+                    ext = 'jpg'
+                    is_base64 = True
+                elif str(link).startswith('data:image/png;base64'):
+                    response = self.base64_to_object(link)
+                    ext = 'png'
+                    is_base64 = True
+                else:
+                    response = requests.get(link, stream=True)
+                    ext = self.get_extension_from_link(link)
+                    is_base64 = False
+
+                no_ext_path = '{}/{}/{}_{}'.format(self.download_path.replace('"', ''), keyword, site_name,
+                                                   str(index).zfill(4))
+                path = no_ext_path + '.' + ext
+                self.save_object_to_file(response, path, is_base64=is_base64)
+
+                success_count += 1
+                del response
+
+                ext2 = self.validate_image(path)
+                if ext2 is None:
+                    print('Unreadable file - {}'.format(link))
+                    os.remove(path)
+                    success_count -= 1
+                else:
+                    if ext != ext2:
+                        path2 = no_ext_path + '.' + ext2
+                        os.rename(path, path2)
+                        print('Renamed extension {} -> {}'.format(ext, ext2))
+
+            except Exception as e:
+                print('Download failed - ', e)
+                continue
+
+    def download_from_site(self, keyword, site_code):
+        site_name = Sites.get_text(site_code)
+        add_url = Sites.get_face_url(site_code) if self.face else ""
+
+        try:
+            proxy = None
+            if self.proxy_list:
+                proxy = random.choice(self.proxy_list)
+            collect = CollectLinks(no_gui=self.no_gui, proxy=proxy)  # initialize chrome driver
+        except Exception as e:
+            print('Error occurred while initializing chromedriver - {}'.format(e))
+            return
+
+        try:
+            print('Collecting links... {} from {}'.format(keyword, site_name))
+
+            if site_code == Sites.GOOGLE:
+                links = collect.google(keyword, add_url)
+
+            elif site_code == Sites.NAVER:
+                links = collect.naver(keyword, add_url)
+
+            elif site_code == Sites.GOOGLE_FULL:
+                links = collect.google_full(keyword, add_url)
+
+            elif site_code == Sites.NAVER_FULL:
+                links = collect.naver_full(keyword, add_url)
+
+            else:
+                print('Invalid Site Code')
+                links = []
+
+            print('Downloading images from collected links... {} from {}'.format(keyword, site_name))
+            self.download_images(keyword, links, site_name, max_count=self.limit)
+            Path('{}/{}/{}_done'.format(self.download_path, keyword.replace('"', ''), site_name)).touch()
+
+            print('Done {} : {}'.format(site_name, keyword))
+
+        except Exception as e:
+            print('Exception {}:{} - {}'.format(site_name, keyword, e))
+
+    def download(self, args):
+        self.download_from_site(keyword=args[0], site_code=args[1])
+
+    def do_crawling(self):
+        keywords = self.get_keywords()
+
+        tasks = []
+
+        for keyword in keywords:
+            dir_name = '{}/{}'.format(self.download_path, keyword)
+            google_done = os.path.exists(os.path.join(os.getcwd(), dir_name, 'google_done'))
+            naver_done = os.path.exists(os.path.join(os.getcwd(), dir_name, 'naver_done'))
+            if google_done and naver_done and self.skip:
+                print('Skipping done task {}'.format(dir_name))
+                continue
+
+            if self.do_google and not google_done:
+                if self.full_resolution:
+                    tasks.append([keyword, Sites.GOOGLE_FULL])
+                else:
+                    tasks.append([keyword, Sites.GOOGLE])
+
+            if self.do_naver and not naver_done:
+                if self.full_resolution:
+                    tasks.append([keyword, Sites.NAVER_FULL])
+                else:
+                    tasks.append([keyword, Sites.NAVER])
+
+        pool = Pool(self.n_threads)
+        pool.map_async(self.download, tasks)
+        pool.close()
+        pool.join()
+        print('Task ended. Pool join.')
+
+        self.imbalance_check()
+
+        print('End Program')
+
+    def imbalance_check(self):
+        print('Data imbalance checking...')
+
+        dict_num_files = {}
+
+        for dir in self.all_dirs(self.download_path):
+            n_files = len(self.all_files(dir))
+            dict_num_files[dir] = n_files
+
+        avg = 0
+        for dir, n_files in dict_num_files.items():
+            avg += n_files / len(dict_num_files)
+            print('dir: {}, file_count: {}'.format(dir, n_files))
+
+        dict_too_small = {}
+
+        for dir, n_files in dict_num_files.items():
+            if n_files < avg * 0.5:
+                dict_too_small[dir] = n_files
+
+        if len(dict_too_small) >= 1:
+            print('Data imbalance detected.')
+            print('Below keywords have smaller than 50% of average file count.')
+            print('I recommend you to remove these directories and re-download for that keyword.')
+            print('_________________________________')
+            print('Too small file count directories:')
+            for dir, n_files in dict_too_small.items():
+                print('dir: {}, file_count: {}'.format(dir, n_files))
+
+            print("Remove directories above? (y/n)")
+            answer = input()
+
+            if answer == 'y':
+                # removing directories too small files
+                print("Removing too small file count directories...")
+                for dir, n_files in dict_too_small.items():
+                    shutil.rmtree(dir)
+                    print('Removed {}'.format(dir))
+
+                print('Now re-run this program to re-download removed files. (with skip_already_exist=True)')
+        else:
+            print('Data imbalance not detected.')
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--skip', type=str, default='true',
+                        help='Skips keyword already downloaded before. This is needed when re-downloading.')
+    parser.add_argument('--threads', type=int, default=4, help='Number of threads to download.')
+    parser.add_argument('--google', type=str, default='true', help='Download from google.com (boolean)')
+    parser.add_argument('--naver', type=str, default='true', help='Download from naver.com (boolean)')
+    parser.add_argument('--full', type=str, default='false',
+                        help='Download full resolution image instead of thumbnails (slow)')
+    parser.add_argument('--face', type=str, default='false', help='Face search mode')
+    parser.add_argument('--no_gui', type=str, default='auto',
+                        help='No GUI mode. Acceleration for full_resolution mode. '
+                             'But unstable on thumbnail mode. '
+                             'Default: "auto" - false if full=false, true if full=true')
+    parser.add_argument('--limit', type=int, default=0,
+                        help='Maximum count of images to download per site. (0: infinite)')
+    parser.add_argument('--proxy-list', type=str, default='',
+                        help='The comma separated proxy list like: "socks://127.0.0.1:1080,http://127.0.0.1:1081". '
+                             'Every thread will randomly choose one from the list.')
+    args = parser.parse_args()
+
+    _skip = False if str(args.skip).lower() == 'false' else True
+    _threads = args.threads
+    _google = False if str(args.google).lower() == 'false' else True
+    _naver = False if str(args.naver).lower() == 'false' else True
+    _full = False if str(args.full).lower() == 'false' else True
+    _face = False if str(args.face).lower() == 'false' else True
+    _limit = int(args.limit)
+    _proxy_list = args.proxy_list.split(',')
+
+    no_gui_input = str(args.no_gui).lower()
+    if no_gui_input == 'auto':
+        _no_gui = _full
+    elif no_gui_input == 'true':
+        _no_gui = True
+    else:
+        _no_gui = False
+
+    print(
+        'Options - skip:{}, threads:{}, google:{}, naver:{}, full_resolution:{}, face:{}, no_gui:{}, limit:{}, _proxy_list:{}'
+            .format(_skip, _threads, _google, _naver, _full, _face, _no_gui, _limit, _proxy_list))
+
+    crawler = AutoCrawler(skip_already_exist=_skip, n_threads=_threads,
+                          do_google=_google, do_naver=_naver, full_resolution=_full,
+                          face=_face, no_gui=_no_gui, limit=_limit, proxy_list=_proxy_list)
+    crawler.do_crawling()
+
+
+!ls AutoImageCrawler
+
+# %load AutoImageCrawler/collect_links.py
+"""
+Copyright 2018 YoongiKim
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+"""
+
+import time
+from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import ElementNotVisibleException, StaleElementReferenceException
+import platform
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+import os.path as osp
+
+LINKS =[]
+class CollectLinks:
+    def __init__(self, no_gui=False, proxy=None):
+        executable = ''
+
+        if platform.system() == 'Windows':
+            print('Detected OS : Windows')
+            executable = './chromedriver/chromedriver_win.exe'
+        elif platform.system() == 'Linux':
+            print('Detected OS : Linux')
+            executable = './chromedriver/chromedriver_linux'
+        elif platform.system() == 'Darwin':
+            print('Detected OS : Mac')
+            executable = './chromedriver/chromedriver_mac'
+        else:
+            raise OSError('Unknown OS Type')
+
+        if not osp.exists(executable):
+            raise FileNotFoundError('Chromedriver file should be placed at {}'.format(executable))
+
+        chrome_options = Options()
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        if no_gui:
+            chrome_options.add_argument('--headless')
+        if proxy:
+            chrome_options.add_argument("--proxy-server={}".format(proxy))
+        self.browser = webdriver.Chrome(ChromeDriverManager().install(), chrome_options=chrome_options)
+
+        browser_version = 'Failed to detect version'
+        chromedriver_version = 'Failed to detect version'
+        major_version_different = False
+
+        if 'browserVersion' in self.browser.capabilities:
+            browser_version = str(self.browser.capabilities['browserVersion'])
+
+        if 'chrome' in self.browser.capabilities:
+            if 'chromedriverVersion' in self.browser.capabilities['chrome']:
+                chromedriver_version = str(self.browser.capabilities['chrome']['chromedriverVersion']).split(' ')[0]
+
+        if browser_version.split('.')[0] != chromedriver_version.split('.')[0]:
+            major_version_different = True
+
+        print('_________________________________')
+        print('Current web-browser version:\t{}'.format(browser_version))
+        print('Current chrome-driver version:\t{}'.format(chromedriver_version))
+        if major_version_different:
+            print('warning: Version different')
+            print(
+                'Download correct version at "http://chromedriver.chromium.org/downloads" and place in "./chromedriver"')
+        print('_________________________________')
+
+    def get_scroll(self):
+        pos = self.browser.execute_script("return window.pageYOffset;")
+        return pos
+
+    def wait_and_click(self, xpath):
+        #  Sometimes click fails unreasonably. So tries to click at all cost.
+        try:
+            w = WebDriverWait(self.browser, 15)
+            elem = w.until(EC.element_to_be_clickable((By.XPATH, xpath)))
+            elem.click()
+            self.highlight(elem)
+        except Exception as e:
+            print('Click time out - {}'.format(xpath))
+            print('Refreshing browser...')
+            self.browser.refresh()
+            time.sleep(2)
+            return self.wait_and_click(xpath)
+
+        return elem
+
+    def highlight(self, element):
+        self.browser.execute_script("arguments[0].setAttribute('style', arguments[1]);", element,
+                                    "background: yellow; border: 2px solid red;")
+
+    @staticmethod
+    def remove_duplicates(_list):
+        return list(dict.fromkeys(_list))
+
+    def google(self, keyword, add_url=""):
+        self.browser.get("https://www.google.com/search?q={}&source=lnms&tbm=isch{}".format(keyword, add_url))
+
+        time.sleep(1)
+
+        print('Scrolling down')
+
+        elem = self.browser.find_element(By.TAG_NAME, "body")
+
+        for i in range(60):
+            elem.send_keys(Keys.PAGE_DOWN)
+            time.sleep(0.2)
+
+        try:
+            # You may need to change this. Because google image changes rapidly.
+            # btn_more = self.browser.find_element(By.XPATH, '//input[@value="결과 더보기"]')
+            # self.wait_and_click('//input[@id="smb"]')
+            self.wait_and_click('//input[@type="button"]')
+
+            for i in range(60):
+                elem.send_keys(Keys.PAGE_DOWN)
+                time.sleep(0.2)
+
+        except ElementNotVisibleException:
+            pass
+
+        photo_grid_boxes = self.browser.find_elements(By.XPATH, '//div[@class="bRMDJf islir"]')
+
+        print('Scraping links')
+
+        links = []
+
+        for box in photo_grid_boxes:
+            try:
+                imgs = box.find_elements(By.TAG_NAME, 'img')
+
+                for img in imgs:
+                    # self.highlight(img)
+                    src = img.get_attribute("src")
+
+                    # Google seems to preload 20 images as base64
+                    if str(src).startswith('data:'):
+                        src = img.get_attribute("data-iurl")
+                    links.append(src)
+
+            except Exception as e:
+                print('[Exception occurred while collecting links from google] {}'.format(e))
+
+        links = self.remove_duplicates(links)
+
+        print('Collect links done. Site: {}, Keyword: {}, Total: {}'.format('google', keyword, len(links)))
+        self.browser.close()
+
+        return links
+
+    def naver(self, keyword, add_url=""):
+        self.browser.get(
+            "https://search.naver.com/search.naver?where=image&sm=tab_jum&query={}{}".format(keyword, add_url))
+
+        time.sleep(1)
+
+        print('Scrolling down')
+
+        elem = self.browser.find_element(By.TAG_NAME, "body")
+
+        for i in range(60):
+            elem.send_keys(Keys.PAGE_DOWN)
+            time.sleep(0.2)
+
+        imgs = self.browser.find_elements(By.XPATH,
+                                          '//div[@class="photo_bx api_ani_send _photoBox"]//img[@class="_image _listImage"]')
+
+        print('Scraping links')
+
+        links = []
+
+        for img in imgs:
+            try:
+                src = img.get_attribute("src")
+                if src[0] != 'd':
+                    links.append(src)
+            except Exception as e:
+                print('[Exception occurred while collecting links from naver] {}'.format(e))
+
+        links = self.remove_duplicates(links)
+
+        print('Collect links done. Site: {}, Keyword: {}, Total: {}'.format('naver', keyword, len(links)))
+        self.browser.close()
+
+        return links
+
+    def google_full(self, keyword, add_url=""):
+        print('[Full Resolution Mode]')
+
+        self.browser.get("https://www.google.com/search?q={}&tbm=isch{}".format(keyword, add_url))
+        time.sleep(1)
+
+        elem = self.browser.find_element(By.TAG_NAME, "body")
+
+        print('Scraping links')
+
+        self.wait_and_click('//div[@data-ri="0"]')
+        time.sleep(1)
+
+        links = []
+        count = 1
+
+        last_scroll = 0
+        scroll_patience = 0
+
+        while True:
+            try:
+                xpath = '//div[@id="islsp"]//div[@class="v4dQwb"]'
+                div_box = self.browser.find_element(By.XPATH, xpath)
+                self.highlight(div_box)
+
+                xpath = '//img[@class="n3VNCb"]'
+                img = div_box.find_element(By.XPATH, xpath)
+                self.highlight(img)
+
+                xpath = '//div[@class="k7O2sd"]'
+                loading_bar = div_box.find_element(By.XPATH, xpath)
+
+                # Wait for image to load. If not it will display base64 code.
+                while str(loading_bar.get_attribute('style')) != 'display: none;':
+                    time.sleep(0.1)
+
+                src = img.get_attribute('src')
+
+                if src is not None:
+                    links.append(src)
+                    print('%d: %s' % (count, src))
+                    count += 1
+
+            except StaleElementReferenceException:
+                # print('[Expected Exception - StaleElementReferenceException]')
+                pass
+            except Exception as e:
+                print('[Exception occurred while collecting links from google_full] {}'.format(e))
+
+            scroll = self.get_scroll()
+            if scroll == last_scroll:
+                scroll_patience += 1
+            else:
+                scroll_patience = 0
+                last_scroll = scroll
+
+            if scroll_patience >= 30:
+                break
+
+            elem.send_keys(Keys.RIGHT)
+            LINKS.append(links)
+            #if len(links)<1000:
+            #    print("END of LINKS",links)
+            #    break
+        links = self.remove_duplicates(links)
+
+        print('Collect links done. Site: {}, Keyword: {}, Total: {}'.format('google_full', keyword, len(links)))
+        self.browser.close()
+        return links
+
+    def naver_full(self, keyword, add_url=""):
+        print('[Full Resolution Mode]')
+
+        self.browser.get(
+            "https://search.naver.com/search.naver?where=image&sm=tab_jum&query={}{}".format(keyword, add_url))
+        time.sleep(1)
+
+        elem = self.browser.find_element(By.TAG_NAME, "body")
+
+        print('Scraping links')
+
+        self.wait_and_click('//div[@class="photo_bx api_ani_send _photoBox"]')
+        time.sleep(1)
+
+        links = []
+        count = 1
+
+        last_scroll = 0
+        scroll_patience = 0
+
+        while True:
+            try:
+                xpath = '//div[@class="image _imageBox"]/img[@class="_image"]'
+                imgs = self.browser.find_elements(By.XPATH, xpath)
+
+                for img in imgs:
+                    self.highlight(img)
+                    src = img.get_attribute('src')
+
+                    if src not in links and src is not None:
+                        links.append(src)
+                        print('%d: %s' % (count, src))
+                        count += 1
+
+            except StaleElementReferenceException:
+                # print('[Expected Exception - StaleElementReferenceException]')
+                pass
+            except Exception as e:
+                print('[Exception occurred while collecting links from naver_full] {}'.format(e))
+
+            scroll = self.get_scroll()
+            if scroll == last_scroll:
+                scroll_patience += 1
+            else:
+                scroll_patience = 0
+                last_scroll = scroll
+
+            if scroll_patience >= 100:
+                break
+
+            elem.send_keys(Keys.RIGHT)
+            elem.send_keys(Keys.PAGE_DOWN)
+            LINKS.append(links)
+            #if len(links)<1000:
+            #   print("END of LINKS",links)
+            #    break
+        links = self.remove_duplicates(links)
+
+        print('Collect links done. Site: {}, Keyword: {}, Total: {}'.format('naver_full', keyword, len(links)))
+        self.browser.close()
+        return links
+
+
+#if __name__ == '__main__':
+#    collect = CollectLinks()
+#    links = collect.naver_full('박보영')
+#    print(len(links), links)
+
+
+STUFF =[]
+searchterm = input("Enter Search Term: ")
+searchterm = searchterm.replace(" ","%20")
+data = open("ImageLink"+searchterm+"links","a+")
+collect = CollectLinks()
+#searchterm = input("Enter Search Term: ")
+links = collect.naver_full(searchterm)
+print(len(links), links)
+for link in links:
+    STUFF.append(link)
+
+#python program to check if a directory exists
+import os
+path = searchterm
+# Check whether the specified path exists or not
+isExist = os.path.exists(path)
+if not isExist:
+    # Create a new directory because it does not exist
+    os.makedirs(path)
+    print("The new directory "+searchterm+" is created!")
+lines = open("ImageLinks."+searchterm,"a")
+for line in links:
+    lines.write(str(line)+"\n")
+print("The file: ImageLinks."+searchterm+" was created.") 
+import urllib.request
+
+Onlinelinks =[]
+with open("ImageLinks."+searchterm) as infile:
+    for line in infile:
+        Onlinelinks.append(line)
+
+for linknum in range(1,len(Onlinelinks)):
+    with urllib.request.urlopen(Onlinelinks[linknum]) as url:
+        filename = searchterm+"/file"+str(linknum)+"XX.jpg"
+        output = open(filename,"wb")
+        print(".",end="-")
+        output.write(url.read())
+    output.close()# I'm guessing this would output the html source code ?
+
+
+
+
+
+
+STUFF =[]
+searchterm = input("Enter Search Term: ")
+searchterm = searchterm.replace(" ","%20")
+data = open("ImageLink"+searchterm+"links","a+")
+collect = CollectLinks()
+#searchterm = input("Enter Search Term: ")
+links = collect.naver_full(searchterm)
+print(len(links), links)
+for link in links:
+    STUFF.append(link)
+
+
+print(len(links))
+
+#python program to check if a directory exists
+import os
+path = searchterm
+# Check whether the specified path exists or not
+isExist = os.path.exists(path)
+if not isExist:
+    # Create a new directory because it does not exist
+    os.makedirs(path)
+    print("The new directory "+searchterm+" is created!")
+lines = open("ImageLinks."+searchterm,"a")
+for line in links:
+    lines.write(str(line)+"\n")
+print("The file: ImageLinks."+searchterm+" was created.")    
+
+lines = open("ImageLinks."+searchterm,"a")
+for line in links:
+    lines.write(str(line)+"\n")
+print("The file: ImageLinks."+searchterm+" was created.")    
+
+import urllib.request
+
+Onlinelinks =[]
+with open("ImageLinks."+searchterm) as infile:
+    for line in infile:
+        Onlinelinks.append(line)
+
+for linknum in range(1,len(Onlinelinks)):
+    with urllib.request.urlopen(Onlinelinks[linknum]) as url:
+        filename = searchterm+"/file"+str(linknum)+"XX.jpg"
+        output = open(filename,"wb")
+        print(".",end="-")
+        output.write(url.read())
+    output.close()# I'm guessing this would output the html source code ?
+
+
+
+searchterm = "ancient manuscript art"
+searchterm = searchterm.replace(" ","%20")
+print (searchterm)
+
+
+
+!python3 AutoImageCrawler/main.py [--skip true] [--threads 4] [--google true] [--naver true] [--full false] [--face false] [--no_gui auto] [--limit 0]
+
+!ls -d */
+
+from AutoImageCrawler import *
+import AutoImageCrawler
+dir (AutoImageCrawler)
+
+Animals = ['Kangaroo', 'Platypus', 'Koala', 'Blobfish', 'Echidna', 'Black Swan', 'Sugar Glider', 'Tasmanian Tiger', 'Headless Chicken Monster', 'Blue Tongue Lizard', 'Dingo', 'Quokka', 'Wombat', 'Emu', 'Red Bellied Black Snake', 'Tasmanian Devil', 'Kookaburra', 'Shark', 'Redback Spider', 'Cassowary', 'Frilled Lizard', 'Crocodile', 'Eastern Brown Snake', 'Box Jellyfish', 'Wallaby', 'Possum', 'Lyrebird', 'Red Kangaroo', 'Stonefish', 'Thorny Devil', 'Antechinus', 'Mimic Octopus', 'Greater Bilby', 'Cuttlefish', 'Corroboree Frog', 'Marsupial Mole', 'Swift Parrot', 'Gouldian Finch', 'Numbat', 'Great Barrier Reef', "Leadbeater's Possum", 'Spotted Quoll', "Gilbert's potoroo", 'Dugong', 'Brushtail Possum', 'Funnel Web Spider', 'Bandicoot', 'Night Parrot', 'Giant Clam', 'Ringtail Possum', 'Tawny Frogmouth', 'Musky Rat-Kangaroo', 'Clownfish', 'Tree Kangaroo', 'Snapping Turtle', 'Stick Nest Rat', 'Antilopine Kangaroo', 'Sea Anemone', 'Penguin', 'Lesser Bilby', 'Woylie', 'Flying Fox (Bat)', 'Cockatoo Parrot', 'Blue-Ringed Octopus', 'Tiger Snake', 'Goanna', 'Dolphin', 'Parrot', 'Sea Lion', 'Red-eyed Tree Frog', 'Rakali (Water Rat)', 'Taipan', 'Peacock Mantis Shrimp', 'Handfish', 'Red-fronted Parakeet', 'Whale', 'Plains Wanderer', 'Loggerhead Turtle', 'Eastern Bettong', 'Lion Fish', 'Gastric-brooding Frog', 'Green Turtle', 'Mandarin Fish', 'Textile Cone', 'Leatherback Turtle']
+
+for searchterm in Animals:
+    print(animal, end=" . ")
+
+for searchterm in Animals:
+    STUFF =[]
+    #searchterm = input("Enter Search Term: ")
+    searchterm = searchterm.replace(" ","%20")
+    data = open("ImageLink"+searchterm+"links","a+")
+    collect = CollectLinks()
+    #searchterm = input("Enter Search Term: ")
+    links = collect.naver_full(searchterm)
+    print(len(links), links)
+    for link in links:
+        STUFF.append(link)
+
+    #python program to check if a directory exists
+    import os
+    path = searchterm
+    # Check whether the specified path exists or not
+    isExist = os.path.exists(path)
+    if not isExist:
+        # Create a new directory because it does not exist
+        os.makedirs(path)
+        print("The new directory "+searchterm+" is created!")
+    lines = open("ImageLinks."+searchterm,"a")
+    for line in links:
+        lines.write(str(line)+"\n")
+    print("The file: ImageLinks."+searchterm+" was created.") 
+    import urllib.request
+
+    Onlinelinks =[]
+    with open("ImageLinks."+searchterm) as infile:
+        for line in infile:
+            Onlinelinks.append(line)
+
+    for linknum in range(1,len(Onlinelinks)):
+        with urllib.request.urlopen(Onlinelinks[linknum]) as url:
+            filename = searchterm+"/file"+str(linknum)+"XX.jpg"
+            output = open(filename,"wb")
+            print(".",end="-")
+            output.write(url.read())
+        output.close()# I'm guessing this would output the html source code ?
+
+
+!python AutoImageCrawler/main.py [--skip true] [--threads 4] [--google true] [--naver true] [--full false] [--face false] [--no_gui auto] [--limit 0]
+
+!ls /home/jack/miniconda3/envs/cloned_base/lib/python3.9/site-packages
+
+!ls AutoImageCrawler
+
+# %load AutoImageCrawler/collect_links.py
+"""
+Copyright 2018 YoongiKim
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+"""
+
+import time
+from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import ElementNotVisibleException, StaleElementReferenceException
+import platform
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+import os.path as osp
+
+LINKS =[]
+class CollectLinks:
+    def __init__(self, no_gui=False, proxy=None):
+        executable = ''
+
+        if platform.system() == 'Windows':
+            print('Detected OS : Windows')
+            executable = './chromedriver/chromedriver_win.exe'
+        elif platform.system() == 'Linux':
+            print('Detected OS : Linux')
+            executable = './chromedriver/chromedriver_linux'
+        elif platform.system() == 'Darwin':
+            print('Detected OS : Mac')
+            executable = './chromedriver/chromedriver_mac'
+        else:
+            raise OSError('Unknown OS Type')
+
+        if not osp.exists(executable):
+            raise FileNotFoundError('Chromedriver file should be placed at {}'.format(executable))
+
+        chrome_options = Options()
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        if no_gui:
+            chrome_options.add_argument('--headless')
+        if proxy:
+            chrome_options.add_argument("--proxy-server={}".format(proxy))
+        self.browser = webdriver.Chrome(ChromeDriverManager().install(), chrome_options=chrome_options)
+
+        browser_version = 'Failed to detect version'
+        chromedriver_version = 'Failed to detect version'
+        major_version_different = False
+
+        if 'browserVersion' in self.browser.capabilities:
+            browser_version = str(self.browser.capabilities['browserVersion'])
+
+        if 'chrome' in self.browser.capabilities:
+            if 'chromedriverVersion' in self.browser.capabilities['chrome']:
+                chromedriver_version = str(self.browser.capabilities['chrome']['chromedriverVersion']).split(' ')[0]
+
+        if browser_version.split('.')[0] != chromedriver_version.split('.')[0]:
+            major_version_different = True
+
+        print('_________________________________')
+        print('Current web-browser version:\t{}'.format(browser_version))
+        print('Current chrome-driver version:\t{}'.format(chromedriver_version))
+        if major_version_different:
+            print('warning: Version different')
+            print(
+                'Download correct version at "http://chromedriver.chromium.org/downloads" and place in "./chromedriver"')
+        print('_________________________________')
+
+    def get_scroll(self):
+        pos = self.browser.execute_script("return window.pageYOffset;")
+        return pos
+
+    def wait_and_click(self, xpath):
+        #  Sometimes click fails unreasonably. So tries to click at all cost.
+        try:
+            w = WebDriverWait(self.browser, 15)
+            elem = w.until(EC.element_to_be_clickable((By.XPATH, xpath)))
+            elem.click()
+            self.highlight(elem)
+        except Exception as e:
+            print('Click time out - {}'.format(xpath))
+            print('Refreshing browser...')
+            self.browser.refresh()
+            time.sleep(2)
+            return self.wait_and_click(xpath)
+
+        return elem
+
+    def highlight(self, element):
+        self.browser.execute_script("arguments[0].setAttribute('style', arguments[1]);", element,
+                                    "background: yellow; border: 2px solid red;")
+
+    @staticmethod
+    def remove_duplicates(_list):
+        return list(dict.fromkeys(_list))
+
+    def google(self, keyword, add_url=""):
+        self.browser.get("https://www.google.com/search?q={}&source=lnms&tbm=isch{}".format(keyword, add_url))
+
+        time.sleep(1)
+
+        print('Scrolling down')
+
+        elem = self.browser.find_element(By.TAG_NAME, "body")
+
+        for i in range(60):
+            elem.send_keys(Keys.PAGE_DOWN)
+            time.sleep(0.2)
+
+        try:
+            # You may need to change this. Because google image changes rapidly.
+            # btn_more = self.browser.find_element(By.XPATH, '//input[@value="결과 더보기"]')
+            # self.wait_and_click('//input[@id="smb"]')
+            self.wait_and_click('//input[@type="button"]')
+
+            for i in range(60):
+                elem.send_keys(Keys.PAGE_DOWN)
+                time.sleep(0.2)
+
+        except ElementNotVisibleException:
+            pass
+
+        photo_grid_boxes = self.browser.find_elements(By.XPATH, '//div[@class="bRMDJf islir"]')
+
+        print('Scraping links')
+
+        links = []
+
+        for box in photo_grid_boxes:
+            try:
+                imgs = box.find_elements(By.TAG_NAME, 'img')
+
+                for img in imgs:
+                    # self.highlight(img)
+                    src = img.get_attribute("src")
+
+                    # Google seems to preload 20 images as base64
+                    if str(src).startswith('data:'):
+                        src = img.get_attribute("data-iurl")
+                    links.append(src)
+
+            except Exception as e:
+                print('[Exception occurred while collecting links from google] {}'.format(e))
+
+        links = self.remove_duplicates(links)
+
+        print('Collect links done. Site: {}, Keyword: {}, Total: {}'.format('google', keyword, len(links)))
+        self.browser.close()
+
+        return links
+
+    def naver(self, keyword, add_url=""):
+        self.browser.get(
+            "https://search.naver.com/search.naver?where=image&sm=tab_jum&query={}{}".format(keyword, add_url))
+
+        time.sleep(1)
+
+        print('Scrolling down')
+
+        elem = self.browser.find_element(By.TAG_NAME, "body")
+
+        for i in range(60):
+            elem.send_keys(Keys.PAGE_DOWN)
+            time.sleep(0.2)
+
+        imgs = self.browser.find_elements(By.XPATH,
+                                          '//div[@class="photo_bx api_ani_send _photoBox"]//img[@class="_image _listImage"]')
+
+        print('Scraping links')
+
+        links = []
+
+        for img in imgs:
+            try:
+                src = img.get_attribute("src")
+                if src[0] != 'd':
+                    links.append(src)
+            except Exception as e:
+                print('[Exception occurred while collecting links from naver] {}'.format(e))
+
+        links = self.remove_duplicates(links)
+
+        print('Collect links done. Site: {}, Keyword: {}, Total: {}'.format('naver', keyword, len(links)))
+        self.browser.close()
+
+        return links
+
+    def google_full(self, keyword, add_url=""):
+        print('[Full Resolution Mode]')
+
+        self.browser.get("https://www.google.com/search?q={}&tbm=isch{}".format(keyword, add_url))
+        time.sleep(1)
+
+        elem = self.browser.find_element(By.TAG_NAME, "body")
+
+        print('Scraping links')
+
+        self.wait_and_click('//div[@data-ri="0"]')
+        time.sleep(1)
+
+        links = []
+        count = 1
+
+        last_scroll = 0
+        scroll_patience = 0
+
+        while True:
+            try:
+                xpath = '//div[@id="islsp"]//div[@class="v4dQwb"]'
+                div_box = self.browser.find_element(By.XPATH, xpath)
+                self.highlight(div_box)
+
+                xpath = '//img[@class="n3VNCb"]'
+                img = div_box.find_element(By.XPATH, xpath)
+                self.highlight(img)
+
+                xpath = '//div[@class="k7O2sd"]'
+                loading_bar = div_box.find_element(By.XPATH, xpath)
+
+                # Wait for image to load. If not it will display base64 code.
+                while str(loading_bar.get_attribute('style')) != 'display: none;':
+                    time.sleep(0.1)
+
+                src = img.get_attribute('src')
+
+                if src is not None:
+                    links.append(src)
+                    print('%d: %s' % (count, src))
+                    count += 1
+
+            except StaleElementReferenceException:
+                # print('[Expected Exception - StaleElementReferenceException]')
+                pass
+            except Exception as e:
+                print('[Exception occurred while collecting links from google_full] {}'.format(e))
+
+            scroll = self.get_scroll()
+            if scroll == last_scroll:
+                scroll_patience += 1
+            else:
+                scroll_patience = 0
+                last_scroll = scroll
+
+            if scroll_patience >= 30:
+                break
+
+            elem.send_keys(Keys.RIGHT)
+            LINKS.append(links)
+            #if len(links)<1000:
+            #    print("END of LINKS",links)
+            #    break
+        links = self.remove_duplicates(links)
+
+        print('Collect links done. Site: {}, Keyword: {}, Total: {}'.format('google_full', keyword, len(links)))
+        self.browser.close()
+        return links
+
+    def naver_full(self, keyword, add_url=""):
+        print('[Full Resolution Mode]')
+
+        self.browser.get(
+            "https://search.naver.com/search.naver?where=image&sm=tab_jum&query={}{}".format(keyword, add_url))
+        time.sleep(1)
+
+        elem = self.browser.find_element(By.TAG_NAME, "body")
+
+        print('Scraping links')
+
+        self.wait_and_click('//div[@class="photo_bx api_ani_send _photoBox"]')
+        time.sleep(1)
+
+        links = []
+        count = 1
+
+        last_scroll = 0
+        scroll_patience = 0
+
+        while True:
+            try:
+                xpath = '//div[@class="image _imageBox"]/img[@class="_image"]'
+                imgs = self.browser.find_elements(By.XPATH, xpath)
+
+                for img in imgs:
+                    self.highlight(img)
+                    src = img.get_attribute('src')
+
+                    if src not in links and src is not None:
+                        links.append(src)
+                        print('%d: %s' % (count, src))
+                        count += 1
+
+            except StaleElementReferenceException:
+                # print('[Expected Exception - StaleElementReferenceException]')
+                pass
+            except Exception as e:
+                print('[Exception occurred while collecting links from naver_full] {}'.format(e))
+
+            scroll = self.get_scroll()
+            if scroll == last_scroll:
+                scroll_patience += 1
+            else:
+                scroll_patience = 0
+                last_scroll = scroll
+
+            if scroll_patience >= 100:
+                break
+
+            elem.send_keys(Keys.RIGHT)
+            elem.send_keys(Keys.PAGE_DOWN)
+            LINKS.append(links)
+            #if len(links)<1000:
+            #   print("END of LINKS",links)
+            #    break
+        links = self.remove_duplicates(links)
+
+        print('Collect links done. Site: {}, Keyword: {}, Total: {}'.format('naver_full', keyword, len(links)))
+        self.browser.close()
+        return links
+
+
+#if __name__ == '__main__':
+#    collect = CollectLinks()
+#    links = collect.naver_full('박보영')
+#    print(len(links), links)
+
+
+STUFF =[]
+searchterm = input("Enter Search Term: ")
+searchterm = searchterm.replace(" ","%20")
+data = open("ImageLink"+searchterm+"links","a+")
+collect = CollectLinks()
+#searchterm = input("Enter Search Term: ")
+links = collect.naver_full(searchterm)
+print(len(links), links)
+for link in links:
+    STUFF.append(link)
+
+#python program to check if a directory exists
+import os
+path = searchterm
+# Check whether the specified path exists or not
+isExist = os.path.exists(path)
+if not isExist:
+    # Create a new directory because it does not exist
+    os.makedirs(path)
+    print("The new directory "+searchterm+" is created!")
+lines = open("ImageLinks."+searchterm,"a")
+for line in links:
+    lines.write(str(line)+"\n")
+print("The file: ImageLinks."+searchterm+" was created.") 
+import urllib.request
+
+Onlinelinks =[]
+with open("ImageLinks."+searchterm) as infile:
+    for line in infile:
+        Onlinelinks.append(line)
+
+for linknum in range(1,len(Onlinelinks)):
+    with urllib.request.urlopen(Onlinelinks[linknum]) as url:
+        filename = searchterm+"/file"+str(linknum)+"XX.jpg"
+        output = open(filename,"wb")
+        print(".",end="-")
+        output.write(url.read())
+    output.close()# I'm guessing this would output the html source code ?
+
+
+
+
+
+
+STUFF =[]
+searchterm = input("Enter Search Term: ")
+searchterm = searchterm.replace(" ","%20")
+data = open("ImageLink"+searchterm+"links","a+")
+collect = CollectLinks()
+#searchterm = input("Enter Search Term: ")
+links = collect.naver_full(searchterm)
+print(len(links), links)
+for link in links:
+    STUFF.append(link)
+
+
+print(len(links))
+
+#python program to check if a directory exists
+import os
+path = searchterm
+# Check whether the specified path exists or not
+isExist = os.path.exists(path)
+if not isExist:
+    # Create a new directory because it does not exist
+    os.makedirs(path)
+    print("The new directory "+searchterm+" is created!")
+lines = open("ImageLinks."+searchterm,"a")
+for line in links:
+    lines.write(str(line)+"\n")
+print("The file: ImageLinks."+searchterm+" was created.")    
+
+lines = open("ImageLinks."+searchterm,"a")
+for line in links:
+    lines.write(str(line)+"\n")
+print("The file: ImageLinks."+searchterm+" was created.")    
+
+import urllib.request
+
+Onlinelinks =[]
+with open("ImageLinks."+searchterm) as infile:
+    for line in infile:
+        Onlinelinks.append(line)
+
+for linknum in range(1,len(Onlinelinks)):
+    with urllib.request.urlopen(Onlinelinks[linknum]) as url:
+        filename = searchterm+"/file"+str(linknum)+"XX.jpg"
+        output = open(filename,"wb")
+        print(".",end="-")
+        output.write(url.read())
+    output.close()# I'm guessing this would output the html source code ?
+
+
+
+searchterm = "ancient manuscript art"
+searchterm = searchterm.replace(" ","%20")
+print (searchterm)
+
+
+
+# %load AutoImageCrawler/main.py
+"""
+Copyright 2018 YoongiKim
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+"""
+
+import os
+import requests
+import shutil
+from multiprocessing import Pool
+import argparse
+from collect_links import CollectLinks
+import imghdr
+import base64
+from pathlib import Path
+import random
+
+
+class Sites:
+    GOOGLE = 1
+    NAVER = 2
+    GOOGLE_FULL = 3
+    NAVER_FULL = 4
+
+    @staticmethod
+    def get_text(code):
+        if code == Sites.GOOGLE:
+            return 'google'
+        elif code == Sites.NAVER:
+            return 'naver'
+        elif code == Sites.GOOGLE_FULL:
+            return 'google'
+        elif code == Sites.NAVER_FULL:
+            return 'naver'
+
+    @staticmethod
+    def get_face_url(code):
+        if code == Sites.GOOGLE or Sites.GOOGLE_FULL:
+            return "&tbs=itp:face"
+        if code == Sites.NAVER or Sites.NAVER_FULL:
+            return "&face=1"
+
+
+class AutoCrawler:
+    def __init__(self, skip_already_exist=True, n_threads=4, do_google=True, do_naver=True, download_path='download',
+                 full_resolution=False, face=False, no_gui=False, limit=0, proxy_list=None):
+        """
+        :param skip_already_exist: Skips keyword already downloaded before. This is needed when re-downloading.
+        :param n_threads: Number of threads to download.
+        :param do_google: Download from google.com (boolean)
+        :param do_naver: Download from naver.com (boolean)
+        :param download_path: Download folder path
+        :param full_resolution: Download full resolution image instead of thumbnails (slow)
+        :param face: Face search mode
+        :param no_gui: No GUI mode. Acceleration for full_resolution mode.
+        :param limit: Maximum count of images to download. (0: infinite)
+        :param proxy_list: The proxy list. Every thread will randomly choose one from the list.
+        """
+
+        self.skip = skip_already_exist
+        self.n_threads = n_threads
+        self.do_google = do_google
+        self.do_naver = do_naver
+        self.download_path = download_path
+        self.full_resolution = full_resolution
+        self.face = face
+        self.no_gui = no_gui
+        self.limit = limit
+        self.proxy_list = proxy_list if proxy_list and len(proxy_list) > 0 else None
+
+        os.makedirs('./{}'.format(self.download_path), exist_ok=True)
+
+    @staticmethod
+    def all_dirs(path):
+        paths = []
+        for dir in os.listdir(path):
+            if os.path.isdir(path + '/' + dir):
+                paths.append(path + '/' + dir)
+
+        return paths
+
+    @staticmethod
+    def all_files(path):
+        paths = []
+        for root, dirs, files in os.walk(path):
+            for file in files:
+                if os.path.isfile(path + '/' + file):
+                    paths.append(path + '/' + file)
+
+        return paths
+
+    @staticmethod
+    def get_extension_from_link(link, default='jpg'):
+        splits = str(link).split('.')
+        if len(splits) == 0:
+            return default
+        ext = splits[-1].lower()
+        if ext == 'jpg' or ext == 'jpeg':
+            return 'jpg'
+        elif ext == 'gif':
+            return 'gif'
+        elif ext == 'png':
+            return 'png'
+        else:
+            return default
+
+    @staticmethod
+    def validate_image(path):
+        ext = imghdr.what(path)
+        if ext == 'jpeg':
+            ext = 'jpg'
+        return ext  # returns None if not valid
+
+    @staticmethod
+    def make_dir(dirname):
+        current_path = os.getcwd()
+        path = os.path.join(current_path, dirname)
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+    @staticmethod
+    def get_keywords(keywords_file='keywords.txt'):
+        # read search keywords from file
+        with open(keywords_file, 'r', encoding='utf-8-sig') as f:
+            text = f.read()
+            lines = text.split('\n')
+            lines = filter(lambda x: x != '' and x is not None, lines)
+            keywords = sorted(set(lines))
+
+        print('{} keywords found: {}'.format(len(keywords), keywords))
+
+        # re-save sorted keywords
+        with open(keywords_file, 'w+', encoding='utf-8') as f:
+            for keyword in keywords:
+                f.write('{}\n'.format(keyword))
+
+        return keywords
+
+    @staticmethod
+    def save_object_to_file(object, file_path, is_base64=False):
+        try:
+            with open('{}'.format(file_path), 'wb') as file:
+                if is_base64:
+                    file.write(object)
+                else:
+                    shutil.copyfileobj(object.raw, file)
+        except Exception as e:
+            print('Save failed - {}'.format(e))
+
+    @staticmethod
+    def base64_to_object(src):
+        header, encoded = str(src).split(',', 1)
+        data = base64.decodebytes(bytes(encoded, encoding='utf-8'))
+        return data
+
+    def download_images(self, keyword, links, site_name, max_count=0):
+        self.make_dir('{}/{}'.format(self.download_path, keyword.replace('"', '')))
+        total = len(links)
+        success_count = 0
+
+        if max_count == 0:
+            max_count = total
+
+        for index, link in enumerate(links):
+            if success_count >= max_count:
+                break
+
+            try:
+                print('Downloading {} from {}: {} / {}'.format(keyword, site_name, success_count + 1, max_count))
+
+                if str(link).startswith('data:image/jpeg;base64'):
+                    response = self.base64_to_object(link)
+                    ext = 'jpg'
+                    is_base64 = True
+                elif str(link).startswith('data:image/png;base64'):
+                    response = self.base64_to_object(link)
+                    ext = 'png'
+                    is_base64 = True
+                else:
+                    response = requests.get(link, stream=True)
+                    ext = self.get_extension_from_link(link)
+                    is_base64 = False
+
+                no_ext_path = '{}/{}/{}_{}'.format(self.download_path.replace('"', ''), keyword, site_name,
+                                                   str(index).zfill(4))
+                path = no_ext_path + '.' + ext
+                self.save_object_to_file(response, path, is_base64=is_base64)
+
+                success_count += 1
+                del response
+
+                ext2 = self.validate_image(path)
+                if ext2 is None:
+                    print('Unreadable file - {}'.format(link))
+                    os.remove(path)
+                    success_count -= 1
+                else:
+                    if ext != ext2:
+                        path2 = no_ext_path + '.' + ext2
+                        os.rename(path, path2)
+                        print('Renamed extension {} -> {}'.format(ext, ext2))
+
+            except Exception as e:
+                print('Download failed - ', e)
+                continue
+
+    def download_from_site(self, keyword, site_code):
+        site_name = Sites.get_text(site_code)
+        add_url = Sites.get_face_url(site_code) if self.face else ""
+
+        try:
+            proxy = None
+            if self.proxy_list:
+                proxy = random.choice(self.proxy_list)
+            collect = CollectLinks(no_gui=self.no_gui, proxy=proxy)  # initialize chrome driver
+        except Exception as e:
+            print('Error occurred while initializing chromedriver - {}'.format(e))
+            return
+
+        try:
+            print('Collecting links... {} from {}'.format(keyword, site_name))
+
+            if site_code == Sites.GOOGLE:
+                links = collect.google(keyword, add_url)
+
+            elif site_code == Sites.NAVER:
+                links = collect.naver(keyword, add_url)
+
+            elif site_code == Sites.GOOGLE_FULL:
+                links = collect.google_full(keyword, add_url)
+
+            elif site_code == Sites.NAVER_FULL:
+                links = collect.naver_full(keyword, add_url)
+
+            else:
+                print('Invalid Site Code')
+                links = []
+
+            print('Downloading images from collected links... {} from {}'.format(keyword, site_name))
+            self.download_images(keyword, links, site_name, max_count=self.limit)
+            Path('{}/{}/{}_done'.format(self.download_path, keyword.replace('"', ''), site_name)).touch()
+
+            print('Done {} : {}'.format(site_name, keyword))
+
+        except Exception as e:
+            print('Exception {}:{} - {}'.format(site_name, keyword, e))
+
+    def download(self, args):
+        self.download_from_site(keyword=args[0], site_code=args[1])
+
+    def do_crawling(self):
+        keywords = self.get_keywords()
+
+        tasks = []
+
+        for keyword in keywords:
+            dir_name = '{}/{}'.format(self.download_path, keyword)
+            google_done = os.path.exists(os.path.join(os.getcwd(), dir_name, 'google_done'))
+            naver_done = os.path.exists(os.path.join(os.getcwd(), dir_name, 'naver_done'))
+            if google_done and naver_done and self.skip:
+                print('Skipping done task {}'.format(dir_name))
+                continue
+
+            if self.do_google and not google_done:
+                if self.full_resolution:
+                    tasks.append([keyword, Sites.GOOGLE_FULL])
+                else:
+                    tasks.append([keyword, Sites.GOOGLE])
+
+            if self.do_naver and not naver_done:
+                if self.full_resolution:
+                    tasks.append([keyword, Sites.NAVER_FULL])
+                else:
+                    tasks.append([keyword, Sites.NAVER])
+
+        pool = Pool(self.n_threads)
+        pool.map_async(self.download, tasks)
+        pool.close()
+        pool.join()
+        print('Task ended. Pool join.')
+
+        self.imbalance_check()
+
+        print('End Program')
+
+    def imbalance_check(self):
+        print('Data imbalance checking...')
+
+        dict_num_files = {}
+
+        for dir in self.all_dirs(self.download_path):
+            n_files = len(self.all_files(dir))
+            dict_num_files[dir] = n_files
+
+        avg = 0
+        for dir, n_files in dict_num_files.items():
+            avg += n_files / len(dict_num_files)
+            print('dir: {}, file_count: {}'.format(dir, n_files))
+
+        dict_too_small = {}
+
+        for dir, n_files in dict_num_files.items():
+            if n_files < avg * 0.5:
+                dict_too_small[dir] = n_files
+
+        if len(dict_too_small) >= 1:
+            print('Data imbalance detected.')
+            print('Below keywords have smaller than 50% of average file count.')
+            print('I recommend you to remove these directories and re-download for that keyword.')
+            print('_________________________________')
+            print('Too small file count directories:')
+            for dir, n_files in dict_too_small.items():
+                print('dir: {}, file_count: {}'.format(dir, n_files))
+
+            print("Remove directories above? (y/n)")
+            answer = input()
+
+            if answer == 'y':
+                # removing directories too small files
+                print("Removing too small file count directories...")
+                for dir, n_files in dict_too_small.items():
+                    shutil.rmtree(dir)
+                    print('Removed {}'.format(dir))
+
+                print('Now re-run this program to re-download removed files. (with skip_already_exist=True)')
+        else:
+            print('Data imbalance not detected.')
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--skip', type=str, default='true',
+                        help='Skips keyword already downloaded before. This is needed when re-downloading.')
+    parser.add_argument('--threads', type=int, default=4, help='Number of threads to download.')
+    parser.add_argument('--google', type=str, default='true', help='Download from google.com (boolean)')
+    parser.add_argument('--naver', type=str, default='true', help='Download from naver.com (boolean)')
+    parser.add_argument('--full', type=str, default='false',
+                        help='Download full resolution image instead of thumbnails (slow)')
+    parser.add_argument('--face', type=str, default='false', help='Face search mode')
+    parser.add_argument('--no_gui', type=str, default='auto',
+                        help='No GUI mode. Acceleration for full_resolution mode. '
+                             'But unstable on thumbnail mode. '
+                             'Default: "auto" - false if full=false, true if full=true')
+    parser.add_argument('--limit', type=int, default=0,
+                        help='Maximum count of images to download per site. (0: infinite)')
+    parser.add_argument('--proxy-list', type=str, default='',
+                        help='The comma separated proxy list like: "socks://127.0.0.1:1080,http://127.0.0.1:1081". '
+                             'Every thread will randomly choose one from the list.')
+    args = parser.parse_args()
+
+    _skip = False if str(args.skip).lower() == 'false' else True
+    _threads = args.threads
+    _google = False if str(args.google).lower() == 'false' else True
+    _naver = False if str(args.naver).lower() == 'false' else True
+    _full = False if str(args.full).lower() == 'false' else True
+    _face = False if str(args.face).lower() == 'false' else True
+    _limit = int(args.limit)
+    _proxy_list = args.proxy_list.split(',')
+
+    no_gui_input = str(args.no_gui).lower()
+    if no_gui_input == 'auto':
+        _no_gui = _full
+    elif no_gui_input == 'true':
+        _no_gui = True
+    else:
+        _no_gui = False
+
+    print(
+        'Options - skip:{}, threads:{}, google:{}, naver:{}, full_resolution:{}, face:{}, no_gui:{}, limit:{}, _proxy_list:{}'
+            .format(_skip, _threads, _google, _naver, _full, _face, _no_gui, _limit, _proxy_list))
+
+    crawler = AutoCrawler(skip_already_exist=_skip, n_threads=_threads,
+                          do_google=_google, do_naver=_naver, full_resolution=_full,
+                          face=_face, no_gui=_no_gui, limit=_limit, proxy_list=_proxy_list)
+    crawler.do_crawling()
+
+
+https://note.nkmk.me/en/python-pillow-paste/
+
+!locate data/src/rocket.jpg
+
+from PIL import Image, ImageDraw, ImageFilter
+
+im1 = Image.open('data/src/lena.jpg')
+im2 = Image.open('data/src/rocket.jpg').resize(im1.size)
+mask = Image.new("L", im1.size, 128)
+im = Image.composite(im1, im2, mask)
+# im = Image.blend(im1, im2, 0.5)
+mask = Image.new("L", im1.size, 0)
+draw = ImageDraw.Draw(mask)
+draw.ellipse((140, 50, 260, 170), fill=255)
+im = Image.composite(im1, im2, mask)
+mask = Image.open('data/src/horse.png').convert('L').resize(im1.size)
+im = Image.composite(im1, im2, mask)
+
+
+from random import randint
+import random
+import os
+CHOOSE =[]
+Paths = open("directory.list","r")
+for path in Paths:
+    path = str(path).replace("\n","")
+    CHOOSE.append(path)
+def usefile():
+    ID = randint(0, len(CHOOSE)-1)
+    DIR = CHOOSE[ID]
+    return DIR
+
+print(usefile())
+
+path = usefile()
+base_image = random.choice([
+x for x in os.listdir(path)
+if os.path.isfile(os.path.join(path, x))
+        ])
+filename0=(path+base_image)
+print(filename0)
+
+from PIL import Image, ImageDraw, ImageFilter
+from random import randint
+import random
+import os
+CHOOSE =[]
+Paths = open("directory.list","r")
+for path in Paths:
+    path = str(path).replace("\n","")
+    CHOOSE.append(path)
+def usefile():
+    ID = randint(0, len(CHOOSE)-1)
+    DIR = CHOOSE[ID]
+    return DIR
+
+path = usefile()
+base_image = random.choice([
+x for x in os.listdir(path)
+if os.path.isfile(os.path.join(path, x))
+        ])
+filename0=(path+base_image)
+print(filename0)
+
+im1 = Image.open(filename0)
+
+path0 = usefile()
+base_image = random.choice([
+x for x in os.listdir(path0)
+if os.path.isfile(os.path.join(path, x))
+        ])
+filename00=(path0+base_image)
+print(filename00)
+im2 = Image.open(filename00)
+
+
+im1.paste(im2)
+#im1.save('data/dst/rocket_pillow_paste.jpg', quality=95)
+im1
+
+im1 = Image.open(filename00)
+im2 = Image.open(filename0)
+
+back_im = im1.copy()
+back_im.paste(im2)
+#back_im.save('data/dst/rocket_pillow_paste.jpg', quality=95)
+back_im
+
+#Specify the position to paste
+
+#The position to paste is specified by a tuple (x coordinate in upper left, y coordinate in upper left) 
+#in the second parameter box.
+
+back_im = im1.copy()
+back_im.paste(im2, (100, 50))
+#back_im.save('data/dst/rocket_pillow_paste_pos.jpg', quality=95)
+back_im
+
+#If the pasted image extends outside the region of the base image, the area that extends is ignored.
+
+back_im = im1.copy()
+back_im.paste(im2, (400, 100))
+#back_im.save('data/dst/rocket_pillow_paste_out.jpg', quality=95)
+back_im
+
+from PIL import Image
+mask_im = Image.new("L", im2.size, 0)
+draw = ImageDraw.Draw(mask_im)
+draw.ellipse((140, 50, 260, 170), fill=255)
+#mask_im.save('junk/mask_circle.jpg', quality=95)
+mask_im
+
+
+back_im = im1.copy()
+back_im.paste(im2, (0, 0), mask_im)
+back_im.save('junk/mask_circle.jpg', quality=95)
+back_im
+
+mask_im_blur = mask_im.filter(ImageFilter.GaussianBlur(10))
+mask_im_blur.save('junk/mask_circle_blur.jpg', quality=95)
+
+mask_im_blur
+
+back_im = im1.copy()
+back_im.paste(im2, (0, 0), mask_im_blur)
+back_im.save('junk/_mask_circle_blur.jpg', quality=95)
+back_im
+
+#After the image is read by open(), it is adjusted to the size of the pasted image by resize(),
+#and the mode is converted to 'L' (grayscale) by convert().
+
+mask_im = Image.open(filename00).resize(im2.size).convert('L')
+
+back_im = im1.copy()
+back_im.paste(im2, (100, 50), mask_im)
+back_im.save('junk/_paste_mask_horse.jpg', quality=95)
+back_im
+
+from PIL import Image, ImageDraw
+
+images = []
+
+width = 200
+center = width // 2
+color_1 = (0, 0, 0)
+color_2 = (255, 255, 255)
+max_radius = int(center * 1.5)
+step = 8
+
+for i in range(0, max_radius, step):
+    im = Image.new('RGB', (width, width), color_1)
+    draw = ImageDraw.Draw(im)
+    draw.ellipse((center - i, center - i, center + i, center + i), fill=color_2)
+    images.append(im)
+
+for i in range(0, max_radius, step):
+    im = Image.new('RGB', (width, width), color_2)
+    draw = ImageDraw.Draw(im)
+    draw.ellipse((center - i, center - i, center + i, center + i), fill=color_1)
+    images.append(im)
+
+images[0].save('junk/pillow_imagedraw.gif',
+               save_all=True, append_images=images[1:], optimize=False, duration=40, loop=0)
+
+
+im = Image.new('RGB', (500, 250), (128, 128, 128))
+draw = ImageDraw.Draw(im)
+
+draw.line(((30, 200), (130, 100), (80, 50)), fill=(255, 255, 0))
+draw.line(((80, 200), (180, 100), (130, 50)), fill=(255, 255, 0), width=10)
+draw.polygon(((200, 200), (800, 100), (250, 50)), fill=(255, 255, 0), outline=(0, 0, 0))
+draw.point(((350, 200), (450, 100), (400, 50)), fill=(255, 255, 0))
+im
+
+im = Image.new('RGB', (600, 250), (128, 128, 128))
+draw = ImageDraw.Draw(im)
+
+draw.arc((25, 50, 175, 200), start=30, end=270, fill=(255, 255, 0))
+draw.chord((225, 50, 375, 200), start=30, end=270, fill=(255, 255, 0), outline=(0, 0, 0))
+draw.pieslice((425, 50, 575, 200), start=30, end=270, fill=(255, 255, 0), outline=(0, 0, 0))
+
+
+im = Image.open(filename00)
+draw = ImageDraw.Draw(im)
+
+draw.pieslice((15, 50, 140, 175), start=30, end=330, fill=(255, 255, 0))
+im
+
+from PIL import Image, ImageDraw, ImageFilter
+
+im_rgb = Image.open(filename0)
+im_rgba = im_rgb.copy()
+im_rgba.putalpha(128)
+im_rgba.save('junk/pillow_putalpha_solid.png')
+im_rgba
+
+im_a = Image.new("L", im_rgb.size, 0)
+draw = ImageDraw.Draw(im_a)
+draw.ellipse((140, 50, 260, 170), fill=255)
+im_a
+
+im_rgba = im_rgb.copy()
+im_rgba.putalpha(im_a)
+im_rgba_crop = im_rgba.crop((140, 50, 260, 170))
+im_rgba_crop.save('junk/pillow_putalpha_circle.png')
+
+im_rgba_crop
+
+m_rgba = im_rgb.copy()
+im_rgba.putalpha(im_a_blur)
+im_rgba_crop = im_rgba.crop((135, 45, 265, 175))
+im_rgba_crop.save('junk/pillow_putalpha_circle_blur.png')
+
+im_rgba_crop
+
+
+
+
+
+!mkdir insta-posted
+
+%%writefile mkimag.py
+#import Image and ImageEnhance modules
+from PIL import Image, ImageEnhance, ImageChops
+from random import randint
+import random
+import os
+import time
+import shutil
+def mkimag():
+    #PatH=["publish/"]
+    #num2 = randint(0,len(PatH)-1)
+    path = "publish/"
+    base_image = random.choice([
+    x for x in os.listdir(path)
+    if os.path.isfile(os.path.join(path, x))
+        ])
+    file=(path+base_image)
+
+    im = Image.open(file)# Open an Image file
+    
+    src_path = file
+    dst_path = "insta-posted/"
+    shutil.move(file, dst_path)
+    print(file)
+    im = im.resize((960,960), Image.ANTIALIAS)
+    #print(im.size)
+    Brighten = ImageEnhance.Brightness(im) # Create a Brightness class
+    brightimage = Brighten.enhance(1.1)
+    brightimage.save("junk/temp-brightened.jpg") # Save results
+ 
+    im = Image.open("junk/temp-brightened.jpg") # Open the Image
+    sharpened = ImageEnhance.Sharpness(im) # Create an object using Sharpness
+    sharpenedimage = sharpened.enhance(1.1)
+    sharpenedimage.save("junk/temp-sharpenedimage.jpg") # Save results
+ 
+    im = Image.open('junk/temp-sharpenedimage.jpg') # Open the Image
+    contrast = ImageEnhance.Contrast(im) # Create an object using Sharpness
+    contrastedimage = contrast.enhance(1.1)
+    contrastedimage.save('junk/temp-contrastedimage.jpg') # Save results
+ 
+    im = Image.open("junk/temp-contrastedimage.jpg")
+    width, height = im.size   # Get dimensions
+    #im = im.resize((2*width,2*height), "Image.NEAREST" (0))
+    #im = im.resize((2*width,2*height), Image.ANTIALIAS)
+    Choose = ["insta-usa-perferations.png", "insta-philippines-perferations.png","insta-perferations.png"]
+    num = randint(0,2)
+    border = (Choose[num])
+    mask=Image.open(border).convert('RGBA') 
+    im.paste(mask, (0,0), mask=mask)
+    timestr = time.strftime("%Y%m%d-%H%M%S")
+    filename = "junk/insta"+timestr+"_.jpg"
+    im.save(filename)
+    im.save('junk/temp1.jpg')
+    return im    
+
+
+mkimag()
+
+#%%writefile use-post-to-instagram.py
+#!/home/jack/miniconda3/envs/cloned_base/bin/python
+from instabot import Bot
+import os
+import shutil
+import markovify
+from PIL import Image, ImageEnhance, ImageChops
+from mkimag import mkimag
+im = mkimag()
+
+
+with open("sart.txt") as f:
+    data = f.read()
+data_model = markovify.Text(data)
+STR = "#computerart #computergraphic #Bots #Python "+data_model.make_sentence()+"""path = "publish/"
+base_image = random.choice([
+x for x in os.listdir(path)
+if os.path.isfile(os.path.join(path, x))
+        ])
+file=(path+base_image)
+im = Image.open(file)# Open an Image file"""
+
+
+
+def clean_up(i):
+    dir = "config"
+    remove_me = "imgs\{}.REMOVE_ME".format(i)
+    # checking whether config folder exists or not
+    if os.path.exists(dir):
+        try:
+            # removing it so we can upload new image
+            shutil.rmtree(dir)
+        except OSError as e:
+            print("Error: %s - %s." % (e.filename, e.strerror))
+    if os.path.exists(remove_me):
+        src = os.path.realpath("junk/{}".format(i))
+        os.rename(remove_me, src)
+
+
+def upload_post(i):
+    bot = Bot()
+
+    bot.login(username="jacklnorthrup", password="Pxyackjs22")
+    bot.upload_photo("junk/{}".format(i), caption=STR)
+
+
+#if __name__ == '__main__':
+# enter name of your image bellow
+image_name = "temp1.jpg"
+clean_up(image_name)
+upload_post(image_name)
+print(image_name)
+
+
+
+!ls publish/274_20220925170825.jpg
+
+from PIL import Image
+im = Image.open("insta-posted/274_20220925170825.jpg")
+im
+
+randint(2000, 5000)*.01
+
+
+
+https://pillow.readthedocs.io/en/stable/reference/ImageFilter.html#module-PIL.ImageFilter
+https://github.com/gmortuza/Deep-Learning-Specialization/blob/master/4.%20Convolutional%20Neural%20Networks/week%204/Programming%20assignment/Neural%20Style%20Transfer/Art_Generation_with_Neural_Style_Transfer_v3a.ipynb
+
+import os
+import tensorflow as tf
+# Load compressed models from tensorflow_hub
+os.environ['TFHUB_MODEL_LOAD_FORMAT'] = 'COMPRESSED'
+import IPython.display as display
+
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+mpl.rcParams['figure.figsize'] = (12, 12)
+mpl.rcParams['axes.grid'] = False
+
+import numpy as np
+import PIL.Image
+import time
+import functools
+
+def tensor_to_image(tensor):
+    tensor = tensor*255
+    tensor = np.array(tensor, dtype=np.uint8)
+    if np.ndim(tensor)>3:
+        assert tensor.shape[0] == 1
+        tensor = tensor[0]
+    return PIL.Image.fromarray(tensor)
+def load_img(path_to_img):
+    max_dim = 512
+    img = tf.io.read_file(path_to_img)
+    img = tf.image.decode_image(img, channels=3)
+    img = tf.image.convert_image_dtype(img, tf.float32)
+
+    shape = tf.cast(tf.shape(img)[:-1], tf.float32)
+    long_dim = max(shape)
+    scale = max_dim / long_dim
+
+    new_shape = tf.cast(shape * scale, tf.int32)
+
+    img = tf.image.resize(img, new_shape)
+    img = img[tf.newaxis, :]
+    return img
+def imshow(image, title=None):
+    if len(image.shape) > 3:
+        image = tf.squeeze(image, axis=0)
+
+    plt.imshow(image)
+    if title:
+        plt.title(title)
+
+!mkdir preped_images
+
+content = "images/farming.jpg"
+content_path = prep_content(content)
+style = "/home/jack/Pictures/UNTITLED_55.JPG"
+style_path = prep_style(style)
+
+
+from PIL import Image
+import os
+
+def prep_content(content):
+    PI = Image.open(content)
+    PI = PI.resize((720,480), Image.NEAREST)
+    CFilename = os.path.basename(content)
+    PI.save("preped_images/Content_"+CFilename)
+    Content_data="preped_images/Content_"+CFilename
+    return Content_data
+    
+def prep_style(style):
+    PI = Image.open(style)
+    PI = PI.resize((720,480), Image.NEAREST)
+    SFilename = os.path.basename(style)
+    PI.save("preped_images/Style_"+SFilename)
+    Style_data="preped_images/Style_"+SFilename
+    return Style_data    
+
+from tensorflow.python.ops.numpy_ops import np_config
+np_config.enable_numpy_behavior()
+from PIL import Image
+import os
+
+def prep_content(content):
+    PI = Image.open(content)
+    PI = PI.resize((720,480), Image.NEAREST)
+    CFilename = os.path.basename(content)
+    PI.save("preped_images/Content_"+CFilename)
+    Content_data="preped_images/Content_"+CFilename
+    return Content_data
+    
+def prep_style(style):
+    PI = Image.open(style)
+    PI = PI.resize((720,480), Image.NEAREST)
+    SFilename = os.path.basename(style)
+    PI.save("preped_images/Style_"+SFilename)
+    Style_data="preped_images/Style_"+SFilename
+    return Style_data    
+
+content = "/home/jack/Desktop/TENSORFLOW/images/ahoy.png"
+
+
+style = "/home/jack/Desktop/TENSORFLOW/images/colors01.png"
+#print (prep_style(style))
+
+content_image = load_img(prep_content(content))
+style_image = load_img(prep_style(style))
+
+print(content_image.size)
+print(style_image.size)
+plt.subplot(1, 2, 1)
+imshow(content_image, 'Content Image')
+
+plt.subplot(1, 2, 2)
+imshow(style_image, 'Style Image')
+
+
+from PIL import Image
+import tensorflow_hub as hub
+import time
+hub_model = hub.load('https://tfhub.dev/google/magenta/arbitrary-image-stylization-v1-256/2')
+
+#hub_model = hub.load("models/magenta_arbitrary-image-stylization-v1-256_2")
+stylized_image = hub_model(tf.constant(content_image), tf.constant(style_image))[0]
+im = tensor_to_image(stylized_image)
+timestr = time.strftime("%Y%m%d-%H%M%S")
+savefile = "images/"+timestr+".jpg"
+im.save(savefile)
+print(im.size)
+im
+
+iml = im.resize((720,480), Image.NEAREST)
+iml.save("720x480/temp.jpg")
+iml
+
+from PIL import Image, ImageEnhance
+im = Image.open("720x480/temp.jpg")
+enhancer = ImageEnhance.Sharpness(im)
+factor = 1.5
+im_s_1 = enhancer.enhance(factor)
+im_s_1.save('720x480/Sharpened-temp.jpg');
+im_s_1
+
+#!/home/jack/miniconda3/envs/cloned_base/bin/python
+import numpy as np
+import random
+from random import randint
+from PIL import Image, ImageDraw, ImageFont, ImageChops, ImageFilter 
+import os
+import sys
+import markovify
+import twython
+from twython import Twython
+import time
+import shutil
+from randtext import randTXT
+STR = randTXT()
+Hash = ["#AIart #Tensorflow #twitme #Python #100DaysOfCode\n","#tensorflow #styletransfer #PythonGraphics #PIL #PythonImageLibrary\n","#NFTartist #NFTProject #NEARnft #nearNFTs \n","#NFT #NFTs #NFTCommunity #NFTdrop #nftart\n","#CreativeCoding  #AI #genart #p5js #Generative\n","#twitme #Python #100DaysOfCode\n","#Python #100DaysOfCode #PythonBots #codefor30days\n" ]
+hashnum = randint(0,len(Hash)-1)
+hashs =Hash[0]
+# add the hash to STR generated with randTXT()
+STR = hashs+STR
+STR= STR[:180]
+print(STR)
+# Open background image and work out centre
+x = 720//2
+y = 480//2
+
+# The text we want to add
+#text = "NFT TwitterBot Project"
+text = STR
+# Create font
+font = ImageFont.truetype('/snap/gnome-3-38-2004/99/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 15)
+
+#nap=randint(10,400)
+#time.sleep(nap)
+'''
+path = r"/home/jack/Desktop/Imagedata/4-publish-images/"
+base_image = random.choice([
+    x for x in os.listdir(path)
+    if os.path.isfile(os.path.join(path, x))
+])'''
+filename1='images/result.png'
+
+bg = Image.open(filename1).convert('RGB')
+x = bg.width//2
+y = bg.height//2
+src_path = filename1
+#dst_path = "/home/jack/Desktop/Imagedata/3-resource_images/"
+#shutil.move(src_path, dst_path)
+
+# The text we want to add
+text=STR[:249]
+print("len(text): ",len(text))
+# Create font
+font = ImageFont.truetype('/snap/gnome-3-38-2004/99/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 15)
+
+# Create piece of canvas to draw text on and blur
+blurred = Image.new('RGBA', bg.size)
+draw = ImageDraw.Draw(blurred)
+CH = randint(0,1)
+if CH == 0:COLor = ["white","black"]
+elif CH == 1:COLor = ["black","white"]  
+draw.text(xy=(x-15,y+160), text=text, fill=COLor[0], font=font, anchor='mm')
+draw.text(xy=(x-16,y+161), text=text, fill=COLor[0], font=font, anchor='mm')
+draw.text(xy=(x-14,y+159), text=text, fill=COLor[0], font=font, anchor='mm')
+draw.text(xy=(x-15,y+160), text=text, fill=COLor[0], font=font, anchor='mm')
+blurred = blurred.filter(ImageFilter.BoxBlur(2))
+
+# Paste soft text onto background
+bg.paste(blurred,blurred)
+
+# Draw on sharp text
+draw = ImageDraw.Draw(bg)
+draw.text(xy=(x-15,y+160), text=text, fill=COLor[1], font=font, anchor='mm')
+#postage = ["perferations.png","perferations+.png","frames.png","usa-perferations.png","usar-perferations.png","usal-perferations.png"]
+#Num = randint( 0, len(postage)-1)
+#BOARDER ="overlays/tensorlow-frames.png"
+#BOARDER ="overlays/nouveau-black-frame1.png"
+#mask=Image.open(BOARDER).convert('RGBA') 
+#bg.paste(mask, (0,0), mask=mask)
+bg.save('images/useresult.png')
+#removed keys for privacy reasons
+CONSUMER_KEY = 'APIkey()[0]'
+CONSUMER_SECRET = 'APIkey()[1]'
+ACCESS_KEY = 'APIkey()[2]'
+ACCESS_SECRET = 'APIkey()[3]'
+
+twitter = Twython(CONSUMER_KEY, CONSUMER_SECRET, ACCESS_KEY, ACCESS_SECRET)
+PATH = "images/useresult.png"
+timestr = time.strftime("%Y%m%d-%H%M%S")
+print (timestr+".png")
+
+#python program to check if a directory exists
+import os
+path = "posted"
+# Check whether the specified path exists or not
+isExist = os.path.exists(path)
+if not isExist:
+    # Create a new directory because it does not exist
+    os.makedirs(path)
+    print("The new directory is created!")
+shutil.copy(PATH, "posted/"+timestr+".png")
+# 1 , 2, 3, 12, 5, 15, 8, 6
+#photo = open('/home/jack/Desktop/deep-dream-generator/notebooks/images/'+file_list[rnd]+'.jpg','rb')
+
+photo = open(PATH,'rb')
+#photo = open("images/waves1.gif","rb")
+#response = twitter.upload_media(media=photo)
+#twitter.update_status(status=STR, media_ids=[response['media_id']])
+
+im = Image.open(PATH)
+im
+
+response = twitter.upload_media(media=photo)
+twitter.update_status(status=STR, media_ids=[response['media_id']])
+
+# Importing Image and ImageFilter module from PIL package
+from PIL import Image, ImageFilter
+
+# creating a image object
+im1 = Image.open('720x480/Sharpened-temp.jpg')
+enhancer = ImageEnhance.Contrast(im1)
+# applying the EDGE_ENHANCE filter
+#im2 = im1.filter(ImageFilter.EDGE_ENHANCE)
+factor = 1.2 #increase contrast
+im2 = enhancer.enhance(factor)
+im2.save('720x480/SharpenedC.jpg')
+im2
+
+
+from PIL import Image
+ 
+# creating a image object (main image)
+im1 = Image.open('720x480/SharpenedC.jpg')
+ 
+# creating a image object (image which is to be paste on main image)
+im2 = Image.open("overlays/tensorlow-frames.png")
+#im2 = Image.open("overlays/nouveau-black-frame.png")
+ 
+# pasting im2 on im1 background.paste(foreground, (0, 0), foreground)
+#background.show()
+
+im1.paste(im2, (0, 0), im2)
+print(im1.size) 
+# to show specified image
+im1.save("images/result.png")
+im1.show()
+
+from tensorflow.python.ops.numpy_ops import np_config
+np_config.enable_numpy_behavior()
+#content_path = "images/myra.jpg"
+#style_path = "images/f6a1489aa194f55436d39d8bb6c19b1c.jpg"
+#content_path = "images/scorpion.png"
+
+#content_path = "/home/jack/Pictures/UNTITLED_55.JPG"
+#style_path = "images/farming.jpg"
+#style_path = "/home/jack/Desktop/TENSORFLOW/images/Screenshot_1.png"
+
+#content = "images/farming.jpg"
+content = "/home/jack/Desktop/TENSORFLOW/torchimages/images/arts_model20221005-172637_42.png"
+#content = "images/OPKJIHUG.jpg"
+#print (prep_content(content))
+
+#style = "/home/jack/Pictures/UNTITLED_55.JPG"
+style = "images/OPKJIHUG.jpg"
+#style = "/home/jack/Desktop/TENSORFLOW/torchimages/images/arts_model20221005-172637_42.png"
+#print (prep_style(style))
+
+content_image = load_img(prep_content(content))
+style_image = load_img(prep_style(style))
+print(content_image.size)
+print(style_image.size)
+plt.subplot(1, 2, 1)
+imshow(content_image, 'Content Image')
+
+plt.subplot(1, 2, 2)
+imshow(style_image, 'Style Image')
+
+
+from PIL import Image
+import tensorflow_hub as hub
+import time
+hub_model = hub.load('https://tfhub.dev/google/magenta/arbitrary-image-stylization-v1-256/2')
+#hub_model = hub.load("models/magenta_arbitrary-image-stylization-v1-256_2")
+stylized_image = hub_model(tf.constant(content_image), tf.constant(style_image))[0]
+im = tensor_to_image(stylized_image)
+timestr = time.strftime("%Y%m%d-%H%M%S")
+savefile = "images/"+timestr+".jpg"
+im.save(savefile)
+print(im.size)
+im

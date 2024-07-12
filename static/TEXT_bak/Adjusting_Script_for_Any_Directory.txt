@@ -1,0 +1,443 @@
+Adjusting Script for Any Directory
+user
+#!/home/jack/miniconda3/envs/cloned_base/bin/python
+# process_videos.py
+import os
+import sys
+import subprocess
+import logging
+import glob
+import random
+from moviepy.editor import VideoFileClip, CompositeVideoClip, ColorClip, ImageClip, AudioFileClip
+from PIL import Image
+import uuid
+import shutil
+import datetime
+"""I want to run this file from /usr/local/bin/process_videos so it can be used anywhere there are mp4s in the directory. What changes do I need ?
+"""
+
+# Define a base directory for operations and mae i a global variable
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+def logit(logdata):
+    timestr = datetime.datetime.now().strftime('%A_%b-%d-%Y')
+    log_entry = f"{timestr}: {logdata}"
+
+    with open(BASE_DIR, "mylog.txt", "a") as log_file:
+        log_file.write(log_entry + "\n")
+
+    return print("mylog.txt entry:", log_entry)# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Define a base directory for operations
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+def slowem():
+    vid_list = glob.glob(os.path.join(BASE_DIR, "out*.mp4"))
+    logit(f"Found {len(vid_list)} videos to slow down.")
+    
+    cnt = 0
+    for vid in vid_list:
+        cnt += 1
+        output_file = os.path.join(BASE_DIR, f"cnt_{cnt}.mp4")
+        cmd = ["ffmpeg", "-i", vid, "-filter:v", "setpts=2*PTS", "-c:a", "copy", "-y", output_file]
+        logging.info(f"Slowing down video: {vid} to {output_file}")
+        subprocess.run(cmd, check=True)
+    logging.info("All videos have been slowed down.")
+
+def reverse_and_concatenate_video(input_video, output_video):
+    try:
+        if not os.path.exists(input_video):
+            logging.error(f"Input video '{input_video}' not found.")
+            return
+        
+        # Create output directory if it doesn't exist
+        output_dir = os.path.dirname(output_video)
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Step 1: Reverse the input video
+        reversed_video = os.path.join(output_dir, os.path.basename(input_video)[:-4] + "_reversed.mp4")
+        logging.info(f"Reversing the input video to {reversed_video}...")
+        reverse_command = ["ffmpeg", "-hide_banner", "-i", input_video, "-vf", "reverse", "-an", "-y", reversed_video]
+        subprocess.run(reverse_command, check=True)
+
+        # Step 2: Concatenate the original and reversed videos
+        concat_command = [
+            "ffmpeg",
+            "-i", input_video,
+            "-i", reversed_video,
+            "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[outv]",
+            "-map", "[outv]", "-y", output_video
+        ]
+        logging.info(f"Concatenating {input_video} and {reversed_video} into {output_video}...")
+        subprocess.run(concat_command, check=True)
+
+        logging.info("Video concatenation completed successfully!")
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Error occurred: {e}")
+
+def scale_and_process_video(filepath):
+    filename = os.path.basename(filepath)
+    logging.info(f"Processing {filename}")
+
+    # Define output filenames
+    output_1 = os.path.join(BASE_DIR, f"output_1_{filename}")
+    output_2 = os.path.join(BASE_DIR, f"output_2_{filename}")
+    final_output = os.path.join(BASE_DIR, f"final_{filename}")
+
+    # First scaling and zooming
+    command1 = [
+        "ffmpeg", "-i", filepath, "-vf",
+        "fps=60,scale=8000:-1,zoompan=z='pzoom+0.001':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=512x768:fps=60",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", output_1
+    ]
+    logging.info(f"Running command: {' '.join(command1)}")
+    subprocess.run(command1, check=True)
+    logging.info(f"First processing step complete for {output_1}")
+
+    # Second scaling and zooming with unsharp filter
+    command2 = [
+        "ffmpeg", "-i", output_1, "-vf",
+        "fps=60,scale=8000:-1,zoompan=z='pzoom+0.001':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=512x768:fps=60,unsharp=3:3:0.5:3:3:0.5",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", output_2
+    ]
+    logging.info(f"Running command: {' '.join(command2)}")
+    subprocess.run(command2, check=True)
+    logging.info(f"Second processing step complete for {output_2}")
+
+    # Third scaling and zooming with unsharp filter
+    command3 = [
+        "ffmpeg", "-i", output_2, "-vf",
+        "fps=60,scale=8000:-1,zoompan=z='pzoom+0.001':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=512x768:fps=60,unsharp=3:3:0.5:3:3:0.5",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", final_output
+    ]
+    logging.info(f"Running command: {' '.join(command3)}")
+    subprocess.run(command3, check=True)
+    logging.info(f"Third processing step complete for {final_output}")
+
+    # Add title image and music
+    processed_video = add_title_image(final_output)
+    return processed_video
+
+def add_title_image(video_path, hex_color=None):
+    if hex_color is None:
+        hex_color = random.choice(["#A52A2A", "#ad1f1f", "#16765c", "#7a4111", "#9b1050", "#8e215d", "#2656ca"])
+    
+    # Load the video file
+    video_clip = VideoFileClip(video_path)
+    width, height = video_clip.size
+    duration = video_clip.duration
+    logging.info(f"Video size: {width}x{height}, Duration: {duration}")
+
+    # Set the desired size of the padded video (e.g., video width + padding, video height + padding)
+    padded_size = (width + 50, height + 50)
+
+    # Calculate the position for centering the video within the larger frame
+    x_position = (padded_size[0] - video_clip.size[0]) / 2
+    y_position = (padded_size[1] - video_clip.size[1]) / 2
+
+    # Remove the '#' and split the hex code into R, G, and B components
+    r = int(hex_color[1:3], 16)
+    g = int(hex_color[3:5], 16)
+    b = int(hex_color[5:7], 16)
+
+    # Create an RGB tuple
+    rgb_tuple = (r, g, b)
+
+    # Create a ColorClip as the background
+    background_clip = ColorClip(padded_size, color=rgb_tuple)
+
+    # Add the video clip on top of the background
+    padded_video_clip = CompositeVideoClip([background_clip, video_clip.set_position((x_position, y_position))])
+    padded_video_clip = padded_video_clip.set_duration(video_clip.duration)
+
+    # Load a random title image
+    title_image_path = random.choice(glob.glob("/mnt/HDD500/FlaskArchitect/static/assets/*512x768.png"))
+    title_image = ImageClip(title_image_path).set_duration(video_clip.duration).set_position((0, -5)).resize(padded_video_clip.size)
+
+    # Create a composite video clip with the title image overlay
+    composite_clip = CompositeVideoClip([padded_video_clip, title_image])
+    composite_clip = composite_clip.set_duration(video_clip.duration)
+
+    # Load a random background music
+    music_path = random.choice(glob.glob("/mnt/HDD500/FlaskArchitect/static/audio/*.mp3"))
+    music_clip = AudioFileClip(music_path).set_duration(video_clip.duration)
+    fade_duration = 1.0
+    music_clip = music_clip.audio_fadein(fade_duration).audio_fadeout(fade_duration)
+
+    # Set the audio of the composite clip to the background music
+    composite_clip = composite_clip.set_audio(music_clip)
+
+    # Generate a unique ID for the output file
+    uid = uuid.uuid4().hex
+    output_path = f'/mnt/HDD500/FlaskArchitect/static/images/post/{uid}.mp4'
+    composite_clip.write_videofile(output_path, codec="libx264")
+    
+    # Copy the final video to another location
+    mp4_file = f"/mnt/HDD500/collections/vids/Ready_Post_{uid}.mp4"
+    shutil.copyfile(output_path, mp4_file)
+    logging.info(f"Final video saved to {mp4_file}")
+
+    return output_path
+
+def process_videos():
+    for filepath in glob.glob(os.path.join(BASE_DIR, "cnt*.mp4")):
+        logging.info(f"Processing video: {filepath}")
+        processed_video = add_title_image(filepath)
+        command = f"alien_add_frame_1024 {processed_video}"
+        subprocess.run(command, shell=True)
+        logging.info(f"Processed video saved to {processed_video}")
+
+if __name__ == '__main__':
+    # Get the current working directory
+    current_dir = os.getcwd()
+
+    # Check if the script is being run as a bin execute
+    if os.path.basename(sys.argv[0]) == 'process_videos':
+        # Use the current directory as the input directory
+        input_dir = current_dir
+        # Use the current directory as the output directory
+        output_dir = current_dir
+    else:
+        # Use the first command line argument as the input directory
+        input_dir = sys.argv[1]
+        # Use the second command line argument as the output directory
+        output_dir = sys.argv[2]
+
+    # Process the videos in the input directory and save the results in the output directory
+    for filename in os.listdir(input_dir):
+        if filename.endswith('.mp4'):
+            input_path = os.path.join(input_dir, filename)
+            output_path = os.path.join(output_dir, f'processed_{filename}')
+            # Process the video here
+            print(f'Processing {input_path}...')
+            print(f'Saving result to {output_path}...')
+            print('')
+    slowem()
+    process_videos()
+"""I want to run this file from /usr/local/bin/process_videos so it can be used anywhere there are mp4s in the directory. What changes do I need ?
+"""
+ChatGPT
+To run your script from `/usr/local/bin/process_videos` and allow it to be executed from any directory containing MP4 files, you need to make several adjustments:
+
+1. Ensure the script uses the current working directory when looking for files.
+2. Update the `BASE_DIR` logic to use the current directory.
+3. Make the script executable and place it in `/usr/local/bin`.
+
+Here's the revised script with the necessary adjustments:
+
+```python
+#!/usr/bin/env python3
+# process_videos.py
+
+import os
+import sys
+import subprocess
+import logging
+import glob
+import random
+from moviepy.editor import VideoFileClip, CompositeVideoClip, ColorClip, ImageClip, AudioFileClip
+from PIL import Image
+import uuid
+import shutil
+import datetime
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Define a base directory for operations
+BASE_DIR = os.getcwd()
+
+def logit(logdata):
+    timestr = datetime.datetime.now().strftime('%A_%b-%d-%Y')
+    log_entry = f"{timestr}: {logdata}"
+
+    with open(os.path.join(BASE_DIR, "mylog.txt"), "a") as log_file:
+        log_file.write(log_entry + "\n")
+
+    print("mylog.txt entry:", log_entry)
+
+def slowem():
+    vid_list = glob.glob(os.path.join(BASE_DIR, "out*.mp4"))
+    logit(f"Found {len(vid_list)} videos to slow down.")
+    
+    cnt = 0
+    for vid in vid_list:
+        cnt += 1
+        output_file = os.path.join(BASE_DIR, f"cnt_{cnt}.mp4")
+        cmd = ["ffmpeg", "-i", vid, "-filter:v", "setpts=2*PTS", "-c:a", "copy", "-y", output_file]
+        logging.info(f"Slowing down video: {vid} to {output_file}")
+        subprocess.run(cmd, check=True)
+    logging.info("All videos have been slowed down.")
+
+def reverse_and_concatenate_video(input_video, output_video):
+    try:
+        if not os.path.exists(input_video):
+            logging.error(f"Input video '{input_video}' not found.")
+            return
+        
+        # Create output directory if it doesn't exist
+        output_dir = os.path.dirname(output_video)
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Step 1: Reverse the input video
+        reversed_video = os.path.join(output_dir, os.path.basename(input_video)[:-4] + "_reversed.mp4")
+        logging.info(f"Reversing the input video to {reversed_video}...")
+        reverse_command = ["ffmpeg", "-hide_banner", "-i", input_video, "-vf", "reverse", "-an", "-y", reversed_video]
+        subprocess.run(reverse_command, check=True)
+
+        # Step 2: Concatenate the original and reversed videos
+        concat_command = [
+            "ffmpeg",
+            "-i", input_video,
+            "-i", reversed_video,
+            "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[outv]",
+            "-map", "[outv]", "-y", output_video
+        ]
+        logging.info(f"Concatenating {input_video} and {reversed_video} into {output_video}...")
+        subprocess.run(concat_command, check=True)
+
+        logging.info("Video concatenation completed successfully!")
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Error occurred: {e}")
+
+def scale_and_process_video(filepath):
+    filename = os.path.basename(filepath)
+    logging.info(f"Processing {filename}")
+
+    # Define output filenames
+    output_1 = os.path.join(BASE_DIR, f"output_1_{filename}")
+    output_2 = os.path.join(BASE_DIR, f"output_2_{filename}")
+    final_output = os.path.join(BASE_DIR, f"final_{filename}")
+
+    # First scaling and zooming
+    command1 = [
+        "ffmpeg", "-i", filepath, "-vf",
+        "fps=60,scale=8000:-1,zoompan=z='pzoom+0.001':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=512x768:fps=60",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", output_1
+    ]
+    logging.info(f"Running command: {' '.join(command1)}")
+    subprocess.run(command1, check=True)
+    logging.info(f"First processing step complete for {output_1}")
+
+    # Second scaling and zooming with unsharp filter
+    command2 = [
+        "ffmpeg", "-i", output_1, "-vf",
+        "fps=60,scale=8000:-1,zoompan=z='pzoom+0.001':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=512x768:fps=60,unsharp=3:3:0.5:3:3:0.5",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", output_2
+    ]
+    logging.info(f"Running command: {' '.join(command2)}")
+    subprocess.run(command2, check=True)
+    logging.info(f"Second processing step complete for {output_2}")
+
+    # Third scaling and zooming with unsharp filter
+    command3 = [
+        "ffmpeg", "-i", output_2, "-vf",
+        "fps=60,scale=8000:-1,zoompan=z='pzoom+0.001':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=512x768:fps=60,unsharp=3:3:0.5:3:3:0.5",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", final_output
+    ]
+    logging.info(f"Running command: {' '.join(command3)}")
+    subprocess.run(command3, check=True)
+    logging.info(f"Third processing step complete for {final_output}")
+
+    # Add title image and music
+    processed_video = add_title_image(final_output)
+    return processed_video
+
+def add_title_image(video_path, hex_color=None):
+    if hex_color is None:
+        hex_color = random.choice(["#A52A2A", "#ad1f1f", "#16765c", "#7a4111", "#9b1050", "#8e215d", "#2656ca"])
+    
+    # Load the video file
+    video_clip = VideoFileClip(video_path)
+    width, height = video_clip.size
+    duration = video_clip.duration
+    logging.info(f"Video size: {width}x{height}, Duration: {duration}")
+
+    # Set the desired size of the padded video (e.g., video width + padding, video height + padding)
+    padded_size = (width + 50, height + 50)
+
+    # Calculate the position for centering the video within the larger frame
+    x_position = (padded_size[0] - video_clip.size[0]) / 2
+    y_position = (padded_size[1] - video_clip.size[1]) / 2
+
+    # Remove the '#' and split the hex code into R, G, and B components
+    r = int(hex_color[1:3], 16)
+    g = int(hex_color[3:5], 16)
+    b = int(hex_color[5:7], 16)
+
+    # Create an RGB tuple
+    rgb_tuple = (r, g, b)
+
+    # Create a ColorClip as the background
+    background_clip = ColorClip(padded_size, color=rgb_tuple)
+
+    # Add the video clip on top of the background
+    padded_video_clip = CompositeVideoClip([background_clip, video_clip.set_position((x_position, y_position))])
+    padded_video_clip = padded_video_clip.set_duration(video_clip.duration)
+
+    # Load a random title image
+    title_image_path = random.choice(glob.glob("/mnt/HDD500/FlaskArchitect/static/assets/*512x768.png"))
+    title_image = ImageClip(title_image_path).set_duration(video_clip.duration).set_position((0, -5)).resize(padded_video_clip.size)
+
+    # Create a composite video clip with the title image overlay
+    composite_clip = CompositeVideoClip([padded_video_clip, title_image])
+    composite_clip = composite_clip.set_duration(video_clip.duration)
+
+    # Load a random background music
+    music_path = random.choice(glob.glob("/mnt/HDD500/FlaskArchitect/static/audio/*.mp3"))
+    music_clip = AudioFileClip(music_path).set_duration(video_clip.duration)
+    fade_duration = 1.0
+    music_clip = music_clip.audio_fadein(fade_duration).audio_fadeout(fade_duration)
+
+    # Set the audio of the composite clip to the background music
+    composite_clip = composite_clip.set_audio(music_clip)
+
+    # Generate a unique ID for the output file
+    uid = uuid.uuid4().hex
+    output_path = f'/mnt/HDD500/FlaskArchitect/static/images/post/{uid}.mp4'
+    composite_clip.write_videofile(output_path, codec="libx264")
+    
+    # Copy the final video to another location
+    mp4_file = f"/mnt/HDD500/collections/vids/Ready_Post_{uid}.mp4"
+    shutil
+ChatGPT
+.copyfile(output_path, mp4_file)
+    logging.info(f"Final video saved to {mp4_file}")
+
+    return output_path
+
+def process_videos():
+    for filepath in glob.glob(os.path.join(BASE_DIR, "cnt*.mp4")):
+        logging.info(f"Processing video: {filepath}")
+        processed_video = add_title_image(filepath)
+        command = f"alien_add_frame_1024 {processed_video}"
+        subprocess.run(command, shell=True)
+        logging.info(f"Processed video saved to {processed_video}")
+
+if __name__ == '__main__':
+    # Process the videos in the current directory
+    for filename in os.listdir(BASE_DIR):
+        if filename.endswith('.mp4'):
+            input_path = os.path.join(BASE_DIR, filename)
+            logging.info(f'Processing {input_path}...')
+            slowem()
+            process_videos()
+```
+
+### Steps to make the script executable and move it to `/usr/local/bin`:
+
+1. **Save the script** to a file named `process_videos.py`.
+
+2. **Make the script executable** by running:
+   ```bash
+   chmod +x process_videos.py
+   ```
+
+3. **Move the script** to `/usr/local/bin` and rename it:
+   ```bash
+   sudo mv process_videos.py /usr/local/bin/process_videos
+   ```
+
+After following these steps, you can execute `process_videos` from any directory, and it will process the MP4 files present in that directory. The script now uses the current working directory (`os.getcwd()`) as the base directory for all file operations.
+

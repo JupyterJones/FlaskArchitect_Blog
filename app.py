@@ -11,7 +11,7 @@ app.static_folder = 'static'  # Set the static folder to 'static'
 app.config['SECRET_KEY'] = 'your_secret_key'
 app.config['UPLOAD_FOLDER'] = 'static/videos'
 app.config['ALLOWED_EXTENSIONS'] = {'mp4'}
-app.config['DATABASE'] = 'instance/blog2.db'
+app.config['DATABASE'] = 'instance/blog3.db'
 
 DATABASE = app.config['DATABASE']
 
@@ -28,6 +28,7 @@ def allowed_file(filename):
 @app.route('/upload_video/<int:post_id>', methods=['POST'])
 def upload_video(post_id):
     if 'videoFile' not in request.files:
+        logit('No file part')
         flash('No file part')
         return redirect(request.url)
     
@@ -39,6 +40,7 @@ def upload_video(post_id):
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        logit(f"Filename: {filename}")
         # Update the database with the filename
         update_video_filename(post_id, filename)
         flash('Video uploaded successfully')
@@ -60,7 +62,7 @@ def init_db():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS post (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL,
+                title TEXT UNIQUE,
                 content TEXT NOT NULL,
                 video_filename TEXT NULL,
                 image BLOB
@@ -88,7 +90,7 @@ def post(post_id):
 def get_post(post_id):
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
-        cursor.execute('SELECT id, title, content, image, video_filename FROM post WHERE id = ?', (post_id,))
+        cursor.execute('SELECT id, title, content, image, video_filename FROM post WHERE id = ? ORDER BY id DESC', (post_id,))
         post = cursor.fetchone()
     return post
 # Function to fetch all posts
@@ -186,7 +188,7 @@ def load_txt_files(directory):
                 with open(filepath, 'r', encoding='utf-8') as file:
                     title = os.path.splitext(filename)[0]
                     content = file.read()
-                    cursor.execute('SELECT id FROM post WHERE title = ?', (title,))
+                    cursor.execute('SELECT id FROM post WHERE title = ? ORDER BY id DESC', (title,))
                     existing_post = cursor.fetchone()
                     if not existing_post:
                         cursor.execute('INSERT INTO post (title, content) VALUES (?, ?)', (title, content))
@@ -270,7 +272,7 @@ def show_post(post_id):
 
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
-        cursor.execute('SELECT id, title, content, image, video_filename FROM post WHERE id = ?', (post_id,))
+        cursor.execute('SELECT id, title, content, image, video_filename FROM post WHERE id = ? ORDER BY id DESC', (post_id,))
         post = cursor.fetchone()
         if not post:
             flash('Post not found')
@@ -278,7 +280,7 @@ def show_post(post_id):
         
         image_data = base64.b64decode(post[3]) if post[3] else None
         video_filename = post[4] if post[4] else None
-
+    logit(f"video_filename: {video_filename}")
     return render_template('post.html', post=post, image_data=image_data, video_filename=video_filename)
 
 @app.route('/image/<int:post_id>')
@@ -288,8 +290,201 @@ def view_image(post_id):
         return send_file(io.BytesIO(image_data), mimetype='image/jpeg')
     else:
         return "No image found", 404
+    
+TEXT_FILES_DIR = "static/TEXT"
+# Check if the text files directory exists, if not, create it
+if not os.path.exists(TEXT_FILES_DIR):
+    os.makedirs(TEXT_FILES_DIR)    
+    
+    
+# Index route to display existing text files and create new ones
+@app.route("/edit_text", methods=["GET", "POST"])
+def edit_text():
+    if request.method == "POST":
+        filename = request.form["filename"]
+        text = request.form["text"]
+        save_text_to_file(filename, text)
+        return redirect(url_for("edit_text"))
+    else:
+        # Path to the file containing list of file paths
+        files = os.listdir(TEXT_FILES_DIR)
+        # Call the function to list files by creation time
+        files = list_files_by_creation_time(files)
+        files = sorted(files)
+        return render_template("edit_text.html", files=files)
+ # Route to edit a text file
+@app.route("/edit/<filename>", methods=["GET", "POST"])
+def edit(filename):
+    if request.method == "POST":
+        text = request.form["text"]
+        save_text_to_file(filename, text)
+        return redirect(url_for("index"))
+    else:
+        text = read_text_from_file(filename)
+        return render_template("edit.html", filename=filename, text=text)
+# Route to delete a text file
+@app.route("/delete/<filename>")
+def delete(filename):
+    filepath = os.path.join(TEXT_FILES_DIR, filename)
+    if os.path.exists(filepath):
+        os.remove(filepath)
+        logit(f"File deleted: {filename}")
+    return redirect(url_for("index"))
+def list_files_by_creation_time(file_paths):
+    """
+    List files by their creation time, oldest first.
+    
+    Args:
+    file_paths (list): List of file paths.
+    
+    Returns:
+    list: List of file paths sorted by creation time.
+    """
+    # Log the start of the function
+    def list_files_by_creation_time(file_paths):
+    """
+    List files by their creation time, oldest first.
+    
+    Args:
+    file_paths (list): List of file paths.
+    
+    Returns:
+    list: List of file paths sorted by creation time.
+    """
+    # Log the start of the function
+    logit('Listing files by creation time...')
+    
+    # Create a dictionary to store file paths and their creation times
+    file_creation_times = {}
+    
+    # Iterate through each file path
+    for file_path in file_paths:
+        # Get the creation time of the file
+        try:
+            creation_time = os.path.getctime(file_path)
+            # Store the file path and its creation time in the dictionary
+            file_creation_times[file_path] = creation_time
+        except FileNotFoundError:
+            # Log a warning if the file is not found
+            logit(f'File not found: {file_path}')
+    
+    # Sort the dictionary by creation time
+    sorted_files = sorted(file_creation_times.items(), key=lambda x: x[1])
+    
+    # Extract the file paths from the sorted list
+    sorted_file_paths = [file_path for file_path, _ in sorted_files]
+    
+    # Log the end of the function
+    def list_files_by_creation_time(file_paths):
+    """
+    List files by their creation time, oldest first.
+    
+    Args:
+    file_paths (list): List of file paths.
+    
+    Returns:
+    list: List of file paths sorted by creation time.
+    """
+    # Log the start of the function
+    def list_files_by_creation_time(file_paths):
+    """
+    List files by their creation time, oldest first.
+    
+    Args:
+    file_paths (list): List of file paths.
+    
+    Returns:
+    list: List of file paths sorted by creation time.
+    """
+    # Log the start of the function
+    logit('Listing files by creation time...')
+    
+    # Create a dictionary to store file paths and their creation times
+    file_creation_times = {}
+    
+    # Iterate through each file path
+    for file_path in file_paths:
+        # Get the creation time of the file
+        try:
+            creation_time = os.path.getctime(file_path)
+            # Store the file path and its creation time in the dictionary
+            file_creation_times[file_path] = creation_time
+        except FileNotFoundError:
+            # Log a warning if the file is not found
+            logging.warning(f'File not found: {file_path}')
+    
+    # Sort the dictionary by creation time
+    sorted_files = sorted(file_creation_times.items(), key=lambda x: x[1])
+    
+    # Extract the file paths from the sorted list
+    sorted_file_paths = [file_path for file_path, _ in sorted_files]
+    
+    # Log the end of the function
+    logit('File listing complete.')
+    
+    # Return the sorted file paths
+    return sorted_file_paths
+('Listing files by creation time...')
+    
+    # Create a dictionary to store file paths and their creation times
+    file_creation_times = {}
+    
+    # Iterate through each file path
+    for file_path in file_paths:
+        # Get the creation time of the file
+        try:
+            creation_time = os.path.getctime(file_path)
+            # Store the file path and its creation time in the dictionary
+            file_creation_times[file_path] = creation_time
+        except FileNotFoundError:
+            # Log a warning if the file is not found
+            logging.warning(f'File not found: {file_path}')
+    
+    # Sort the dictionary by creation time
+    sorted_files = sorted(file_creation_times.items(), key=lambda x: x[1])
+    
+    # Extract the file paths from the sorted list
+    sorted_file_paths = [file_path for file_path, _ in sorted_files]
+    
+    # Log the end of the function
+    logit('File listing complete.')
+    
+    # Return the sorted file paths
+    return sorted_file_paths
+('File listing complete.')
+    
+    # Return the sorted file paths
+    return sorted_file_paths
+('Listing files by creation time...')
+    
+    # Create a dictionary to store file paths and their creation times
+    file_creation_times = {}
+    
+    # Iterate through each file path
+    for file_path in file_paths:
+        # Get the creation time of the file
+        try:
+            creation_time = os.path.getctime(file_path)
+            # Store the file path and its creation time in the dictionary
+            file_creation_times[file_path] = creation_time
+        except FileNotFoundError:
+            # Log a warning if the file is not found
+            logit(f'File not found: {file_path}')
+    
+    # Sort the dictionary by creation time
+    sorted_files = sorted(file_creation_times.items(), key=lambda x: x[1])
+    
+    # Extract the file paths from the sorted list
+    sorted_file_paths = [file_path for file_path, _ in sorted_files]
+    
+    # Log the end of the function
+    logit('File listing complete.')
+    
+    # Return the sorted file paths
+    return sorted_file_paths
+
 
 if __name__ == '__main__':
     directory = 'static/TEXT'
     load_txt_files(directory)
-    app.run(debug=True)
+    app.run(debug=True,port=5100)
